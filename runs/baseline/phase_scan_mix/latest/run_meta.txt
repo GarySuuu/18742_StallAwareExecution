@@ -1,0 +1,8 @@
+timestamp=2026-03-11T22:49:12-04:00
+outdir=/home/rock/project/gem5/runs/baseline/phase_scan_mix/latest
+maxinsts=50000000
+workload_path=workloads/phase_scan_mix/bin/arm/linux/phase_scan_mix
+workload_args=524288 24 1
+run_tag=phase_scan_mix
+summary_file=/home/rock/project/gem5/runs/baseline/phase_scan_mix/latest/baseline_config_summary.md
+cmd=/home/rock/project/gem5/build/ARM/gem5.opt --outdir=/home/rock/project/gem5/runs/baseline/phase_scan_mix/latest /home/rock/project/gem5/configs/deprecated/example/se.py -n 1 --cpu-type=DerivO3CPU --caches --l2cache --mem-size=2GB --maxinsts=50000000 -c workloads/phase_scan_mix/bin/arm/linux/phase_scan_mix --options=524288\ 24\ 1

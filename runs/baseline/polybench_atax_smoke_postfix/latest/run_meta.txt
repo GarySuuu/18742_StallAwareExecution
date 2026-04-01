@@ -1,0 +1,8 @@
+timestamp=2026-03-31T11:47:14-04:00
+outdir=/home/rock/project/gem5/runs/baseline/polybench_atax_smoke_postfix/latest
+maxinsts=1000000
+workload_path=workloads/external/polybench-c/build-arm/atax/atax
+workload_args=
+run_tag=polybench_atax_smoke_postfix
+summary_file=/home/rock/project/gem5/runs/baseline/polybench_atax_smoke_postfix/latest/baseline_config_summary.md
+cmd=/home/rock/project/gem5/build/ARM/gem5.opt --outdir=/home/rock/project/gem5/runs/baseline/polybench_atax_smoke_postfix/latest /home/rock/project/gem5/configs/deprecated/example/se.py -n 1 --cpu-type=DerivO3CPU --caches --l2cache --mem-size=2GB --maxinsts=1000000 -c workloads/external/polybench-c/build-arm/atax/atax

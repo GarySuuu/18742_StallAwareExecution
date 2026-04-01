@@ -1,0 +1,1 @@
+window_id,cycles,class,target_mode,applied_mode,switched,fetched_insts,committed_insts,squashed_insts,branch_mispredicts,commit_blocked_mem_cycles,avg_outstanding_misses_proxy,avg_iq_occupancy,iq_saturation_ratio,branch_recovery_ratio,squash_ratio,commit_activity_ratio,avg_inflight_proxy

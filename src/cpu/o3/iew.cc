@@ -849,11 +849,13 @@ IEW::dispatchInsts(ThreadID tid)
     DynInstPtr inst;
     bool add_to_iq = false;
     int dis_num_inst = 0;
+    const unsigned dispatch_width =
+        cpu->adaptiveDispatchWidth(dispatchWidth);
 
     // Loop through the instructions, putting them in the instruction
     // queue.
     for ( ; dis_num_inst < insts_to_add &&
-              dis_num_inst < dispatchWidth;
+              dis_num_inst < dispatch_width;
           ++dis_num_inst)
     {
         inst = insts_to_dispatch.front();

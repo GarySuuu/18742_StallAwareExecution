@@ -596,8 +596,9 @@ Rename::renameInsts(ThreadID tid)
     }
 
     int renamed_insts = 0;
+    const unsigned rename_width = cpu->adaptiveRenameWidth(renameWidth);
 
-    while (insts_available > 0 &&  toIEWIndex < renameWidth) {
+    while (insts_available > 0 && toIEWIndex < rename_width) {
         DPRINTF(Rename, "[tid:%i] Sending instructions to IEW.\n", tid);
 
         assert(!insts_to_rename.empty());

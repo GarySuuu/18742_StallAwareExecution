@@ -1,0 +1,8 @@
+timestamp=2026-03-12T17:11:09-04:00
+outdir=/home/rock/project/gem5/runs/baseline/gapbs_bfs_smoke/latest
+maxinsts=1000000
+workload_path=workloads/external/gapbs/bfs
+workload_args=-g 8 -n 1
+run_tag=gapbs_bfs_smoke
+summary_file=/home/rock/project/gem5/runs/baseline/gapbs_bfs_smoke/latest/baseline_config_summary.md
+cmd=/home/rock/project/gem5/build/ARM/gem5.opt --outdir=/home/rock/project/gem5/runs/baseline/gapbs_bfs_smoke/latest /home/rock/project/gem5/configs/deprecated/example/se.py -n 1 --cpu-type=DerivO3CPU --caches --l2cache --mem-size=2GB --maxinsts=1000000 -c workloads/external/gapbs/bfs --options=-g\ 8\ -n\ 1

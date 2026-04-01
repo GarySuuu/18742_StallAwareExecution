@@ -192,3 +192,109 @@ class BaseO3CPU(BaseCPU):
         TournamentBP(numThreads=Parent.numThreads), "Branch Predictor"
     )
     needsTSO = Param.Bool(False, "Enable TSO Memory model")
+
+    enableStallAdaptive = Param.Bool(
+        False, "Enable stall root-cause adaptive controller (v1)"
+    )
+    adaptiveWindowCycles = Param.Unsigned(
+        5000, "Sampling window size in cycles for adaptive controller"
+    )
+    adaptiveSwitchHysteresis = Param.Unsigned(
+        2, "Consecutive windows required before class/mode switch"
+    )
+    adaptiveMinModeWindows = Param.Unsigned(
+        2, "Minimum number of windows to hold current mode"
+    )
+    adaptiveConservativeFetchWidth = Param.Unsigned(
+        2, "Effective fetch width in conservative mode"
+    )
+    adaptiveConservativeInflightCap = Param.Unsigned(
+        96, "Soft in-flight cap (ROB occupancy proxy) in conservative mode"
+    )
+    adaptiveConservativeIQCap = Param.Unsigned(
+        0, "Optional IQ occupancy cap in conservative mode (0 disables it)"
+    )
+    adaptiveConservativeLSQCap = Param.Unsigned(
+        0,
+        "Optional LSQ occupancy proxy cap in conservative mode (0 disables it)",
+    )
+    adaptiveConservativeRenameWidth = Param.Unsigned(
+        0,
+        "Optional effective rename width in conservative mode (0 keeps baseline width)",
+    )
+    adaptiveConservativeDispatchWidth = Param.Unsigned(
+        0,
+        "Optional effective dispatch width in conservative mode (0 keeps baseline width)",
+    )
+    adaptiveUseClassProfiles = Param.Bool(
+        False,
+        "If true, use per-class execution profiles instead of the legacy "
+        "aggressive/conservative 2-mode mapping.",
+    )
+    adaptiveSerializedFetchWidth = Param.Unsigned(
+        2, "Fetch width when class=Serialized (0 keeps baseline width)"
+    )
+    adaptiveSerializedInflightCap = Param.Unsigned(
+        64, "Inflight cap when class=Serialized (0 disables)"
+    )
+    adaptiveSerializedRenameWidth = Param.Unsigned(
+        4, "Rename width cap when class=Serialized (0 keeps baseline width)"
+    )
+    adaptiveSerializedDispatchWidth = Param.Unsigned(
+        4, "Dispatch width cap when class=Serialized (0 keeps baseline width)"
+    )
+    adaptiveHighMLPFetchWidth = Param.Unsigned(
+        0, "Fetch width when class=HighMLP (0 keeps baseline width)"
+    )
+    adaptiveHighMLPInflightCap = Param.Unsigned(
+        0, "Inflight cap when class=HighMLP (0 disables)"
+    )
+    adaptiveHighMLPRenameWidth = Param.Unsigned(
+        0, "Rename width cap when class=HighMLP (0 keeps baseline width)"
+    )
+    adaptiveHighMLPDispatchWidth = Param.Unsigned(
+        0, "Dispatch width cap when class=HighMLP (0 keeps baseline width)"
+    )
+    adaptiveControlFetchWidth = Param.Unsigned(
+        2, "Fetch width when class=Control (0 keeps baseline width)"
+    )
+    adaptiveControlInflightCap = Param.Unsigned(
+        96, "Inflight cap when class=Control (0 disables)"
+    )
+    adaptiveControlRenameWidth = Param.Unsigned(
+        4, "Rename width cap when class=Control (0 keeps baseline width)"
+    )
+    adaptiveControlDispatchWidth = Param.Unsigned(
+        4, "Dispatch width cap when class=Control (0 keeps baseline width)"
+    )
+    adaptiveResourceFetchWidth = Param.Unsigned(
+        0, "Fetch width when class=Resource (0 keeps baseline width)"
+    )
+    adaptiveResourceInflightCap = Param.Unsigned(
+        128, "Inflight cap when class=Resource (0 disables)"
+    )
+    adaptiveResourceRenameWidth = Param.Unsigned(
+        6, "Rename width cap when class=Resource (0 keeps baseline width)"
+    )
+    adaptiveResourceDispatchWidth = Param.Unsigned(
+        6, "Dispatch width cap when class=Resource (0 keeps baseline width)"
+    )
+
+    adaptiveMemBlockRatioThres = Param.Float(
+        0.15, "Threshold for memory-blocked ratio per window"
+    )
+    adaptiveOutstandingMissThres = Param.Float(
+        8.0, "Threshold for avg outstanding misses proxy per window"
+    )
+    adaptiveBranchRecoveryRatioThres = Param.Float(
+        0.10, "Threshold for branch-recovery-cycle ratio per window"
+    )
+    adaptiveSquashRatioThres = Param.Float(
+        0.20, "Threshold for squash/fetch ratio per window"
+    )
+    adaptiveIQSaturationRatioThres = Param.Float(
+        0.10, "Threshold for IQ saturation ratio per window"
+    )
+    adaptiveCommitActivityRatioThres = Param.Float(
+        0.20, "Threshold for commit activity ratio per window"
+    )

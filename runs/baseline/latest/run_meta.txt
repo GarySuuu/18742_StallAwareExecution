@@ -1,0 +1,7 @@
+timestamp=2026-03-11T16:37:50-04:00
+outdir=/home/rock/project/gem5/runs/baseline/latest
+maxinsts=50000000
+workload_path=workloads/adaptive_phase_bias/bin/arm/linux/adaptive_phase_bias
+workload_args=200 200 400 1
+summary_file=/home/rock/project/gem5/runs/baseline/latest/baseline_config_summary.md
+cmd=/home/rock/project/gem5/build/ARM/gem5.opt --outdir=/home/rock/project/gem5/runs/baseline/latest /home/rock/project/gem5/configs/deprecated/example/se.py -n 1 --cpu-type=DerivO3CPU --caches --l2cache --mem-size=2GB --maxinsts=50000000 -c workloads/adaptive_phase_bias/bin/arm/linux/adaptive_phase_bias --options=200\ 200\ 400\ 1

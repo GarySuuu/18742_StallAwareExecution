@@ -1,0 +1,15 @@
+timestamp=2026-03-31T12:24:06-04:00
+outdir=/home/rock/project/gem5/runs/adaptive/v2/hash_probe_chain/latest
+maxinsts=50000000
+window_cycles=5000
+conservative_fetch_width=2
+conservative_inflight_cap=96
+conservative_iq_cap=0
+conservative_lsq_cap=0
+conservative_rename_width=0
+conservative_dispatch_width=0
+workload_path=workloads/hash_probe_chain/bin/arm/linux/hash_probe_chain
+workload_args=131072 64 1
+run_tag=hash_probe_chain
+summary_file=/home/rock/project/gem5/runs/adaptive/v2/hash_probe_chain/latest/adaptive_config_summary.md
+cmd=/home/rock/project/gem5/build/ARM/gem5.opt --outdir=/home/rock/project/gem5/runs/adaptive/v2/hash_probe_chain/latest /home/rock/project/gem5/configs/deprecated/example/se.py -n 1 --cpu-type=DerivO3CPU --caches --l2cache --mem-size=2GB --maxinsts=50000000 --param system.cpu\[0\].enableStallAdaptive=True --param system.cpu\[0\].adaptiveWindowCycles=5000 --param system.cpu\[0\].adaptiveSwitchHysteresis=1 --param system.cpu\[0\].adaptiveMinModeWindows=1 --param system.cpu\[0\].adaptiveConservativeFetchWidth=2 --param system.cpu\[0\].adaptiveConservativeInflightCap=96 --param system.cpu\[0\].adaptiveConservativeIQCap=0 --param system.cpu\[0\].adaptiveConservativeLSQCap=0 --param system.cpu\[0\].adaptiveConservativeRenameWidth=0 --param system.cpu\[0\].adaptiveConservativeDispatchWidth=0 --param system.cpu\[0\].adaptiveMemBlockRatioThres=0.12 --param system.cpu\[0\].adaptiveOutstandingMissThres=12 -c workloads/hash_probe_chain/bin/arm/linux/hash_probe_chain --options=131072\ 64\ 1

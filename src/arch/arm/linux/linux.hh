@@ -182,6 +182,12 @@ class ArmLinux32 : public ArmLinux, public OpenFlagTable<ArmLinux32>
         int32_t tv_nsec;  //!< nanoseconds
     };
 
+    struct timespec64
+    {
+        int64_t tv_sec;   //!< seconds
+        int64_t tv_nsec;  //!< nanoseconds
+    };
+
     // For writev/readv
     struct tgt_iovec
     {

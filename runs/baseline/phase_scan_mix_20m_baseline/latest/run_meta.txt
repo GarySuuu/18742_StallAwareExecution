@@ -1,0 +1,6 @@
+mode=baseline
+tag=phase_scan_mix_20m_baseline
+maxinsts=20000000
+workload=workloads/phase_scan_mix/bin/arm/linux/phase_scan_mix
+workload_args=524288 24 1
+cmd=/tmp/rock-gem5.opt.snapshot --outdir=/home/rock/project/gem5/runs/baseline/phase_scan_mix_20m_baseline/latest /home/rock/project/gem5/configs/deprecated/example/se.py -n 1 --cpu-type=DerivO3CPU --caches --l2cache --mem-size=2GB --maxinsts=20000000 -c workloads/phase_scan_mix/bin/arm/linux/phase_scan_mix --options=524288\ 24\ 1

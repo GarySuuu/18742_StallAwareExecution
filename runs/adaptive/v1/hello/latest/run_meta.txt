@@ -1,0 +1,9 @@
+timestamp=2026-03-11T20:28:58-04:00
+outdir=/home/rock/project/gem5/runs/adaptive/v1/hello/latest
+maxinsts=50000000
+window_cycles=5000
+workload_path=/home/rock/project/gem5/tests/test-progs/hello/bin/arm/linux/hello
+workload_args=
+run_tag=hello
+summary_file=/home/rock/project/gem5/runs/adaptive/v1/hello/latest/adaptive_config_summary.md
+cmd=/home/rock/project/gem5/build/ARM/gem5.opt --outdir=/home/rock/project/gem5/runs/adaptive/v1/hello/latest /home/rock/project/gem5/configs/deprecated/example/se.py -n 1 --cpu-type=DerivO3CPU --caches --l2cache --mem-size=2GB --maxinsts=50000000 --param system.cpu\[0\].enableStallAdaptive=True --param system.cpu\[0\].adaptiveWindowCycles=5000 --param system.cpu\[0\].adaptiveSwitchHysteresis=2 --param system.cpu\[0\].adaptiveMinModeWindows=2 --param system.cpu\[0\].adaptiveConservativeFetchWidth=2 --param system.cpu\[0\].adaptiveConservativeInflightCap=96 -c /home/rock/project/gem5/tests/test-progs/hello/bin/arm/linux/hello

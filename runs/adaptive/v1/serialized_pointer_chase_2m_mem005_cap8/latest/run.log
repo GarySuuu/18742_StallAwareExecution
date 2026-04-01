@@ -1,0 +1,21 @@
+warn: The `get_runtime_isa` function is deprecated. Please migrate away from using this function.
+warn: The se.py script is deprecated. It will be removed in future releases of  gem5.
+warn: The `get_runtime_isa` function is deprecated. Please migrate away from using this function.
+Global frequency set at 1000000000000 ticks per second
+src/mem/dram_interface.cc:690: warn: DRAM device capacity (8192 Mbytes) does not match the address range assigned (2048 Mbytes)
+src/arch/arm/linux/se_workload.cc:73: warn: Unknown operating system; assuming Linux.
+src/base/statistics.hh:279: warn: One of the stats is a legacy stat. Legacy stat is a stat that does not belong to any statistics::Group. Legacy stat is deprecated.
+src/base/remote_gdb.cc:418: warn: Sockets disabled, not accepting gdb connections
+gem5 Simulator System.  https://www.gem5.org
+gem5 is copyrighted software; use the --copyright option for details.
+
+gem5 version 23.0.0.1
+gem5 compiled Mar 12 2026 16:38:53
+gem5 started Mar 26 2026 12:52:04
+gem5 executing on rockzzz, pid 540841
+command line: /home/rock/project/gem5/build/ARM/gem5.opt --outdir=/home/rock/project/gem5/runs/adaptive/v1/serialized_pointer_chase_2m_mem005_cap8/latest /home/rock/project/gem5/configs/deprecated/example/se.py -n 1 --cpu-type=DerivO3CPU --caches --l2cache --mem-size=2GB --maxinsts=2000000 --param 'system.cpu[0].enableStallAdaptive=True' --param 'system.cpu[0].adaptiveWindowCycles=5000' --param 'system.cpu[0].adaptiveSwitchHysteresis=2' --param 'system.cpu[0].adaptiveMinModeWindows=2' --param 'system.cpu[0].adaptiveConservativeFetchWidth=8' --param 'system.cpu[0].adaptiveConservativeInflightCap=8' -c workloads/serialized_pointer_chase/bin/arm/linux/serialized_pointer_chase '--options=1048576 12 1' --param 'system.cpu[0].adaptiveMemBlockRatioThres=0.05' --param 'system.cpu[0].adaptiveOutstandingMissThres=40' --param 'system.cpu[0].adaptiveSwitchHysteresis=1' --param 'system.cpu[0].adaptiveMinModeWindows=1'
+
+info: Standard input is not a terminal, disabling listeners.
+**** REAL SIMULATION ****
+src/sim/simulate.cc:194: info: Entering event queue @ 0.  Starting simulation...
+Exiting @ tick 1396201500 because a thread reached the max instruction count

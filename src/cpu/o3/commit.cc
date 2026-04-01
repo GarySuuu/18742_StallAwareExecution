@@ -447,6 +447,12 @@ Commit::numROBFreeEntries(ThreadID tid)
     return rob->numFreeEntries(tid);
 }
 
+bool
+Commit::isSquashing(ThreadID tid) const
+{
+    return commitStatus[tid] == ROBSquashing;
+}
+
 void
 Commit::generateTrapEvent(ThreadID tid, Fault inst_fault)
 {
@@ -833,6 +839,7 @@ Commit::commit()
                      toIEW->commitInfo[tid].branchTaken = true;
                 }
                 ++stats.branchMispredicts;
+                cpu->adaptiveNoteBranchMispredict();
             }
 
             set(toIEW->commitInfo[tid].pc, fromIEW->pc[tid]);
@@ -959,6 +966,7 @@ Commit::commitInsts()
             rob->retireHead(commit_thread);
 
             ++stats.commitSquashedInsts;
+            cpu->adaptiveNoteSquashedInst();
             // Notify potential listeners that this instruction is squashed
             ppSquash->notify(head_inst);
 
@@ -972,6 +980,7 @@ Commit::commitInsts()
 
             if (commit_success) {
                 ++num_committed;
+                cpu->adaptiveNoteCommittedInst();
                 cpu->commitStats[tid]
                     ->committedInstType[head_inst->opClass()]++;
                 stats.committedInstType[tid][head_inst->opClass()]++;

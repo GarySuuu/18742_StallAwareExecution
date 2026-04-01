@@ -1,0 +1,20 @@
+warn: The `get_runtime_isa` function is deprecated. Please migrate away from using this function.
+warn: The se.py script is deprecated. It will be removed in future releases of  gem5.
+warn: The `get_runtime_isa` function is deprecated. Please migrate away from using this function.
+Global frequency set at 1000000000000 ticks per second
+src/mem/dram_interface.cc:690: warn: DRAM device capacity (8192 Mbytes) does not match the address range assigned (2048 Mbytes)
+src/arch/arm/linux/se_workload.cc:73: warn: Unknown operating system; assuming Linux.
+src/base/statistics.hh:279: warn: One of the stats is a legacy stat. Legacy stat is a stat that does not belong to any statistics::Group. Legacy stat is deprecated.
+system.remote_gdb: Listening for connections on port 7000
+gem5 Simulator System.  https://www.gem5.org
+gem5 is copyrighted software; use the --copyright option for details.
+
+gem5 version 23.0.0.1
+gem5 compiled Mar  8 2026 21:17:17
+gem5 started Mar 11 2026 22:32:43
+gem5 executing on rockzzz, pid 2216492
+command line: /home/rock/project/gem5/build/ARM/gem5.opt --outdir=/home/rock/project/gem5/runs/adaptive/v1/hash_probe_chain/latest /home/rock/project/gem5/configs/deprecated/example/se.py -n 1 --cpu-type=DerivO3CPU --caches --l2cache --mem-size=2GB --maxinsts=50000000 --param 'system.cpu[0].enableStallAdaptive=True' --param 'system.cpu[0].adaptiveWindowCycles=5000' --param 'system.cpu[0].adaptiveSwitchHysteresis=2' --param 'system.cpu[0].adaptiveMinModeWindows=2' --param 'system.cpu[0].adaptiveConservativeFetchWidth=2' --param 'system.cpu[0].adaptiveConservativeInflightCap=96' -c workloads/hash_probe_chain/bin/arm/linux/hash_probe_chain '--options=131072 64 1'
+
+**** REAL SIMULATION ****
+src/sim/simulate.cc:194: info: Entering event queue @ 0.  Starting simulation...
+Exiting @ tick 49106787500 because a thread reached the max instruction count

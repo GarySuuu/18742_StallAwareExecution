@@ -1,0 +1,9 @@
+timestamp=2026-03-30T14:47:21-04:00
+outdir=/home/rock/project/gem5/runs/adaptive/v1/sweeps/week11_planA_50M/serialized_pointer_chase/w10000_h2_m2_cap96/serialized_pointer_chase/archive/2026-03-30T14_47_21-04_00
+outdir_base=/home/rock/project/gem5/runs/adaptive/v1/sweeps/week11_planA_50M/serialized_pointer_chase/w10000_h2_m2_cap96
+maxinsts=50000000
+window_cycles=10000
+workload_path=workloads/serialized_pointer_chase/bin/arm/linux/serialized_pointer_chase
+workload_args=1048576 12 1
+run_tag=serialized_pointer_chase
+cmd=/home/rock/project/gem5/build/ARM/gem5.opt --outdir=/home/rock/project/gem5/runs/adaptive/v1/sweeps/week11_planA_50M/serialized_pointer_chase/w10000_h2_m2_cap96/serialized_pointer_chase/archive/2026-03-30T14_47_21-04_00 /home/rock/project/gem5/configs/deprecated/example/se.py -n 1 --cpu-type=DerivO3CPU --caches --l2cache --mem-size=2GB --maxinsts=50000000 --param system.cpu\[0\].enableStallAdaptive=True --param system.cpu\[0\].adaptiveWindowCycles=10000 --param system.cpu\[0\].adaptiveConservativeFetchWidth=2 --param system.cpu\[0\].adaptiveConservativeInflightCap=96 --param system.cpu\[0\].adaptiveConservativeIQCap=0 --param system.cpu\[0\].adaptiveConservativeLSQCap=0 --param system.cpu\[0\].adaptiveConservativeRenameWidth=0 --param system.cpu\[0\].adaptiveConservativeDispatchWidth=0 -c workloads/serialized_pointer_chase/bin/arm/linux/serialized_pointer_chase --options=1048576\ 12\ 1 --param system.cpu\[0\].adaptiveSwitchHysteresis=2 --param system.cpu\[0\].adaptiveMinModeWindows=2

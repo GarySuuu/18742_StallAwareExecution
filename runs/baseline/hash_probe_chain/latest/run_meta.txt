@@ -1,0 +1,8 @@
+timestamp=2026-03-11T22:16:12-04:00
+outdir=/home/rock/project/gem5/runs/baseline/hash_probe_chain/latest
+maxinsts=50000000
+workload_path=workloads/hash_probe_chain/bin/arm/linux/hash_probe_chain
+workload_args=131072 64 1
+run_tag=hash_probe_chain
+summary_file=/home/rock/project/gem5/runs/baseline/hash_probe_chain/latest/baseline_config_summary.md
+cmd=/home/rock/project/gem5/build/ARM/gem5.opt --outdir=/home/rock/project/gem5/runs/baseline/hash_probe_chain/latest /home/rock/project/gem5/configs/deprecated/example/se.py -n 1 --cpu-type=DerivO3CPU --caches --l2cache --mem-size=2GB --maxinsts=50000000 -c workloads/hash_probe_chain/bin/arm/linux/hash_probe_chain --options=131072\ 64\ 1

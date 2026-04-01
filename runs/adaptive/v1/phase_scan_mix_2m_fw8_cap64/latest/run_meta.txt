@@ -1,0 +1,11 @@
+timestamp=2026-03-26T12:54:40-04:00
+outdir=/home/rock/project/gem5/runs/adaptive/v1/phase_scan_mix_2m_fw8_cap64/latest
+maxinsts=2000000
+window_cycles=5000
+conservative_fetch_width=8
+conservative_inflight_cap=64
+workload_path=workloads/phase_scan_mix/bin/arm/linux/phase_scan_mix
+workload_args=524288 24 1
+run_tag=phase_scan_mix_2m_fw8_cap64
+summary_file=/home/rock/project/gem5/runs/adaptive/v1/phase_scan_mix_2m_fw8_cap64/latest/adaptive_config_summary.md
+cmd=/home/rock/project/gem5/build/ARM/gem5.opt --outdir=/home/rock/project/gem5/runs/adaptive/v1/phase_scan_mix_2m_fw8_cap64/latest /home/rock/project/gem5/configs/deprecated/example/se.py -n 1 --cpu-type=DerivO3CPU --caches --l2cache --mem-size=2GB --maxinsts=2000000 --param system.cpu\[0\].enableStallAdaptive=True --param system.cpu\[0\].adaptiveWindowCycles=5000 --param system.cpu\[0\].adaptiveSwitchHysteresis=2 --param system.cpu\[0\].adaptiveMinModeWindows=2 --param system.cpu\[0\].adaptiveConservativeFetchWidth=8 --param system.cpu\[0\].adaptiveConservativeInflightCap=64 -c workloads/phase_scan_mix/bin/arm/linux/phase_scan_mix --options=524288\ 24\ 1

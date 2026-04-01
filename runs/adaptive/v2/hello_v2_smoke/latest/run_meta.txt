@@ -1,0 +1,15 @@
+timestamp=2026-03-31T11:55:21-04:00
+outdir=/home/rock/project/gem5/runs/adaptive/v2/hello_v2_smoke/latest
+maxinsts=100000
+window_cycles=5000
+conservative_fetch_width=2
+conservative_inflight_cap=96
+conservative_iq_cap=0
+conservative_lsq_cap=0
+conservative_rename_width=0
+conservative_dispatch_width=0
+workload_path=/home/rock/project/gem5/tests/test-progs/hello/bin/arm/linux/hello
+workload_args=
+run_tag=hello_v2_smoke
+summary_file=/home/rock/project/gem5/runs/adaptive/v2/hello_v2_smoke/latest/adaptive_config_summary.md
+cmd=/home/rock/project/gem5/build/ARM/gem5.opt --outdir=/home/rock/project/gem5/runs/adaptive/v2/hello_v2_smoke/latest /home/rock/project/gem5/configs/deprecated/example/se.py -n 1 --cpu-type=DerivO3CPU --caches --l2cache --mem-size=2GB --maxinsts=100000 --param system.cpu\[0\].enableStallAdaptive=True --param system.cpu\[0\].adaptiveWindowCycles=5000 --param system.cpu\[0\].adaptiveSwitchHysteresis=1 --param system.cpu\[0\].adaptiveMinModeWindows=1 --param system.cpu\[0\].adaptiveConservativeFetchWidth=2 --param system.cpu\[0\].adaptiveConservativeInflightCap=96 --param system.cpu\[0\].adaptiveConservativeIQCap=0 --param system.cpu\[0\].adaptiveConservativeLSQCap=0 --param system.cpu\[0\].adaptiveConservativeRenameWidth=0 --param system.cpu\[0\].adaptiveConservativeDispatchWidth=0 --param system.cpu\[0\].adaptiveMemBlockRatioThres=0.12 --param system.cpu\[0\].adaptiveOutstandingMissThres=12 -c /home/rock/project/gem5/tests/test-progs/hello/bin/arm/linux/hello

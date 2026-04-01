@@ -640,7 +640,7 @@ Fetch::finishTranslation(const Fault &fault, const RequestPtr &mem_req)
         }
     } else {
         // Don't send an instruction to decode if we can't handle it.
-        if (!(numInst < fetchWidth) ||
+        if (!(numInst < cpu->adaptiveFetchWidth()) ||
                 !(fetchQueue[tid].size() < fetchQueueSize)) {
             assert(!finishTranslationEvent.scheduled());
             finishTranslationEvent.setFault(fault);
@@ -1055,7 +1055,7 @@ Fetch::buildInst(ThreadID tid, StaticInstPtr staticInst,
 
     // Write the instruction to the first slot in the queue
     // that heads to decode.
-    assert(numInst < fetchWidth);
+    assert(numInst < cpu->adaptiveFetchWidth());
     fetchQueue[tid].push_back(instruction);
     assert(fetchQueue[tid].size() <= fetchQueueSize);
     DPRINTF(Fetch, "[tid:%i] Fetch queue entry created (%i/%i).\n",
@@ -1086,6 +1086,11 @@ Fetch::fetch(bool &status_change)
             profileStall(0);
         }
 
+        return;
+    }
+
+    if (cpu->adaptiveShouldThrottleFetch()) {
+        DPRINTF(Fetch, "[tid:%i] Adaptive conservative throttle active.\n", tid);
         return;
     }
 
@@ -1179,7 +1184,10 @@ Fetch::fetch(bool &status_change)
     // Loop through instruction memory from the cache.
     // Keep issuing while fetchWidth is available and branch is not
     // predicted taken
-    while (numInst < fetchWidth && fetchQueue[tid].size() < fetchQueueSize
+    const unsigned effectiveFetchWidth = cpu->adaptiveFetchWidth();
+
+    while (numInst < effectiveFetchWidth &&
+           fetchQueue[tid].size() < fetchQueueSize
            && !predictedBranch && !quiesce) {
         // We need to process more memory if we aren't going to get a
         // StaticInst from the rom, the current macroop, or what's already
@@ -1252,6 +1260,7 @@ Fetch::fetch(bool &status_change)
 
             ppFetch->notify(instruction);
             numInst++;
+            cpu->adaptiveNoteFetchedInst();
 
 #if TRACING_ON
             if (debug::O3PipeView) {
@@ -1291,7 +1300,7 @@ Fetch::fetch(bool &status_change)
                 break;
             }
         } while ((curMacroop || dec_ptr->instReady()) &&
-                 numInst < fetchWidth &&
+                 numInst < effectiveFetchWidth &&
                  fetchQueue[tid].size() < fetchQueueSize);
 
         // Re-evaluate whether the next instruction to fetch is in micro-op ROM
@@ -1302,7 +1311,7 @@ Fetch::fetch(bool &status_change)
     if (predictedBranch) {
         DPRINTF(Fetch, "[tid:%i] Done fetching, predicted branch "
                 "instruction encountered.\n", tid);
-    } else if (numInst >= fetchWidth) {
+    } else if (numInst >= effectiveFetchWidth) {
         DPRINTF(Fetch, "[tid:%i] Done fetching, reached fetch bandwidth "
                 "for this cycle.\n", tid);
     } else if (blkOffset >= fetchBufferSize) {

@@ -2128,6 +2128,20 @@ clock_gettimeFunc(SyscallDesc *desc, ThreadContext *tc,
     return 0;
 }
 
+/// Target clock_gettime64() function for 32-bit ABIs using a 64-bit timespec.
+template <class OS>
+SyscallReturn
+clock_gettime64Func(SyscallDesc *desc, ThreadContext *tc,
+                    int clk_id, VPtr<typename OS::timespec64> tp)
+{
+    getElapsedTimeNano(tp->tv_sec, tp->tv_nsec);
+    tp->tv_sec += seconds_since_epoch;
+    tp->tv_sec = htog(tp->tv_sec, OS::byteOrder);
+    tp->tv_nsec = htog(tp->tv_nsec, OS::byteOrder);
+
+    return 0;
+}
+
 /// Target clock_getres() function.
 template <class OS>
 SyscallReturn
@@ -2135,6 +2149,19 @@ clock_getresFunc(SyscallDesc *desc, ThreadContext *tc, int clk_id,
                  VPtr<typename OS::timespec> tp)
 {
     // Set resolution at ns, which is what clock_gettime() returns
+    tp->tv_sec = 0;
+    tp->tv_nsec = 1;
+
+    return 0;
+}
+
+/// Target clock_getres_time64() function for 32-bit ABIs using a 64-bit
+/// timespec.
+template <class OS>
+SyscallReturn
+clock_getres64Func(SyscallDesc *desc, ThreadContext *tc, int clk_id,
+                   VPtr<typename OS::timespec64> tp)
+{
     tp->tv_sec = 0;
     tp->tv_nsec = 1;
 

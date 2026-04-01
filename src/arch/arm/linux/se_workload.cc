@@ -488,7 +488,14 @@ class SyscallTable32 : public SyscallDescTable<EmuLinux::SyscallABI32>
         { base + 363, "sys_rt_tgsigqueueinfo" },
         { base + 364, "sys_perf_event_open" },
         { base + 365, "sys_recvmmsg" },
-        { base + 384, "getrandom", getrandomFunc<ArmLinux32> }
+        { base + 384, "getrandom", getrandomFunc<ArmLinux32> },
+        // Newer ARM32 glibc startup code may probe these even for simple
+        // user binaries. Keep SE mode compatible by accepting rseq and by
+        // surfacing statx as a known syscall if it appears later.
+        { base + 397, "statx" },
+        { base + 398, "rseq", ignoreWarnOnceFunc },
+        { base + 403, "clock_gettime64", clock_gettime64Func<ArmLinux32> },
+        { base + 406, "clock_getres_time64", clock_getres64Func<ArmLinux32> }
     })
     {}
 };

@@ -212,6 +212,7 @@ class Commit
 
     /** Returns the number of free ROB entries for a specific thread. */
     size_t numROBFreeEntries(ThreadID tid);
+    bool isSquashing(ThreadID tid) const;
 
     /** Generates an event to schedule a squash due to a trap. */
     void generateTrapEvent(ThreadID tid, Fault inst_fault);

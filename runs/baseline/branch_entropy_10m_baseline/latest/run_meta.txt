@@ -1,0 +1,8 @@
+timestamp=2026-03-31T11:39:59-04:00
+outdir=/home/rock/project/gem5/runs/baseline/branch_entropy_10m_baseline/latest
+maxinsts=10000000
+workload_path=workloads/branch_entropy/bin/arm/linux/branch_entropy
+workload_args=32768 1024 1
+run_tag=branch_entropy_10m_baseline
+summary_file=/home/rock/project/gem5/runs/baseline/branch_entropy_10m_baseline/latest/baseline_config_summary.md
+cmd=/home/rock/project/gem5/build/ARM/gem5.opt --outdir=/home/rock/project/gem5/runs/baseline/branch_entropy_10m_baseline/latest /home/rock/project/gem5/configs/deprecated/example/se.py -n 1 --cpu-type=DerivO3CPU --caches --l2cache --mem-size=2GB --maxinsts=10000000 -c workloads/branch_entropy/bin/arm/linux/branch_entropy --options=32768\ 1024\ 1

@@ -42,6 +42,11 @@
 
 #include "cpu/o3/cpu.hh"
 
+#include <algorithm>
+#include <iomanip>
+#include <limits>
+#include <sstream>
+
 #include "cpu/activity.hh"
 #include "cpu/checker/cpu.hh"
 #include "cpu/checker/thread_context.hh"
@@ -68,6 +73,21 @@ struct BaseCPUParams;
 
 namespace o3
 {
+
+namespace
+{
+
+double
+safeRatio(uint64_t numerator, uint64_t denominator)
+{
+    if (denominator == 0) {
+        return 0.0;
+    }
+    return static_cast<double>(numerator) /
+           static_cast<double>(denominator);
+}
+
+} // anonymous namespace
 
 CPU::CPU(const BaseO3CPUParams &params)
     : BaseCPU(params),
@@ -127,6 +147,55 @@ CPU::CPU(const BaseO3CPUParams &params)
         _status = Running;
     } else {
         _status = SwitchedOut;
+    }
+
+    adaptiveEnable = params.enableStallAdaptive;
+    adaptiveWindowCycles = params.adaptiveWindowCycles;
+    adaptiveSwitchHysteresis = params.adaptiveSwitchHysteresis;
+    adaptiveMinModeWindows = params.adaptiveMinModeWindows;
+    adaptiveAggressiveFetch = params.fetchWidth;
+    adaptiveConservativeFetch = params.adaptiveConservativeFetchWidth;
+    adaptiveConservativeInflightCap = params.adaptiveConservativeInflightCap;
+    adaptiveConservativeIQCap = params.adaptiveConservativeIQCap;
+    adaptiveConservativeLSQCap = params.adaptiveConservativeLSQCap;
+    adaptiveConservativeRenameWidth = params.adaptiveConservativeRenameWidth;
+    adaptiveConservativeDispatchWidth = params.adaptiveConservativeDispatchWidth;
+    adaptiveUseClassProfiles = params.adaptiveUseClassProfiles;
+    adaptiveSerializedFetchWidth = params.adaptiveSerializedFetchWidth;
+    adaptiveSerializedInflightCap = params.adaptiveSerializedInflightCap;
+    adaptiveSerializedRenameWidth = params.adaptiveSerializedRenameWidth;
+    adaptiveSerializedDispatchWidth = params.adaptiveSerializedDispatchWidth;
+    adaptiveHighMLPFetchWidth = params.adaptiveHighMLPFetchWidth;
+    adaptiveHighMLPInflightCap = params.adaptiveHighMLPInflightCap;
+    adaptiveHighMLPRenameWidth = params.adaptiveHighMLPRenameWidth;
+    adaptiveHighMLPDispatchWidth = params.adaptiveHighMLPDispatchWidth;
+    adaptiveControlFetchWidth = params.adaptiveControlFetchWidth;
+    adaptiveControlInflightCap = params.adaptiveControlInflightCap;
+    adaptiveControlRenameWidth = params.adaptiveControlRenameWidth;
+    adaptiveControlDispatchWidth = params.adaptiveControlDispatchWidth;
+    adaptiveResourceFetchWidth = params.adaptiveResourceFetchWidth;
+    adaptiveResourceInflightCap = params.adaptiveResourceInflightCap;
+    adaptiveResourceRenameWidth = params.adaptiveResourceRenameWidth;
+    adaptiveResourceDispatchWidth = params.adaptiveResourceDispatchWidth;
+    adaptiveMemBlockRatioThres = params.adaptiveMemBlockRatioThres;
+    adaptiveOutstandingMissThres = params.adaptiveOutstandingMissThres;
+    adaptiveBranchRecoveryRatioThres = params.adaptiveBranchRecoveryRatioThres;
+    adaptiveSquashRatioThres = params.adaptiveSquashRatioThres;
+    adaptiveIQSaturationRatioThres = params.adaptiveIQSaturationRatioThres;
+    adaptiveCommitActivityRatioThres = params.adaptiveCommitActivityRatioThres;
+
+    adaptiveCurrentClass = AdaptiveClass::ResourceContentionDominated;
+    adaptivePendingClass = adaptiveCurrentClass;
+    adaptiveCurrentMode = AdaptiveMode::Aggressive;
+
+    if (adaptiveEnable) {
+        adaptiveWindowLog = simout.create("adaptive_window_log.csv");
+        auto &os = *adaptiveWindowLog->stream();
+        os << "window_id,cycles,class,target_mode,applied_mode,switched,"
+           << "fetched_insts,committed_insts,squashed_insts,branch_mispredicts,"
+           << "commit_blocked_mem_cycles,avg_outstanding_misses_proxy,"
+           << "avg_iq_occupancy,iq_saturation_ratio,branch_recovery_ratio,"
+           << "squash_ratio,commit_activity_ratio,avg_inflight_proxy\n";
     }
 
     if (params.checker) {
@@ -378,6 +447,11 @@ CPU::tick()
         cleanUpRemovedInsts();
     }
 
+    if (adaptiveEnable) {
+        adaptiveRecordCycleSignals();
+        adaptiveAdvanceWindow();
+    }
+
     if (!tickEvent.scheduled()) {
         if (_status == SwitchedOut) {
             DPRINTF(O3CPU, "Switched out!\n");
@@ -397,6 +471,432 @@ CPU::tick()
         updateThreadPriority();
 
     tryDrain();
+}
+
+unsigned
+CPU::adaptiveFetchWidthFromParam(unsigned param) const
+{
+    if (param == 0) {
+        return adaptiveAggressiveFetch;
+    }
+    return std::max(1u, std::min(adaptiveAggressiveFetch, param));
+}
+
+unsigned
+CPU::adaptiveInflightCapFromParam(unsigned param) const
+{
+    return param == 0 ? std::numeric_limits<unsigned>::max() : param;
+}
+
+unsigned
+CPU::adaptiveEffectiveInflightCap() const
+{
+    switch (adaptiveCurrentMode) {
+      case AdaptiveMode::SerializedProfile:
+        return adaptiveInflightCapFromParam(adaptiveSerializedInflightCap);
+      case AdaptiveMode::HighMLPProfile:
+        return adaptiveInflightCapFromParam(adaptiveHighMLPInflightCap);
+      case AdaptiveMode::ControlProfile:
+        return adaptiveInflightCapFromParam(adaptiveControlInflightCap);
+      case AdaptiveMode::ResourceProfile:
+        return adaptiveInflightCapFromParam(adaptiveResourceInflightCap);
+      case AdaptiveMode::Conservative:
+        return adaptiveInflightCapFromParam(adaptiveConservativeInflightCap);
+      case AdaptiveMode::Aggressive:
+      default:
+        return std::numeric_limits<unsigned>::max();
+    }
+}
+
+unsigned
+CPU::adaptiveEffectiveRenameWidthLimit() const
+{
+    switch (adaptiveCurrentMode) {
+      case AdaptiveMode::SerializedProfile:
+        return adaptiveSerializedRenameWidth;
+      case AdaptiveMode::HighMLPProfile:
+        return adaptiveHighMLPRenameWidth;
+      case AdaptiveMode::ControlProfile:
+        return adaptiveControlRenameWidth;
+      case AdaptiveMode::ResourceProfile:
+        return adaptiveResourceRenameWidth;
+      case AdaptiveMode::Conservative:
+        return adaptiveConservativeRenameWidth;
+      case AdaptiveMode::Aggressive:
+      default:
+        return 0;
+    }
+}
+
+unsigned
+CPU::adaptiveEffectiveDispatchWidthLimit() const
+{
+    switch (adaptiveCurrentMode) {
+      case AdaptiveMode::SerializedProfile:
+        return adaptiveSerializedDispatchWidth;
+      case AdaptiveMode::HighMLPProfile:
+        return adaptiveHighMLPDispatchWidth;
+      case AdaptiveMode::ControlProfile:
+        return adaptiveControlDispatchWidth;
+      case AdaptiveMode::ResourceProfile:
+        return adaptiveResourceDispatchWidth;
+      case AdaptiveMode::Conservative:
+        return adaptiveConservativeDispatchWidth;
+      case AdaptiveMode::Aggressive:
+      default:
+        return 0;
+    }
+}
+
+unsigned
+CPU::adaptiveFetchWidth() const
+{
+    if (!adaptiveEnable) {
+        return adaptiveAggressiveFetch;
+    }
+
+    switch (adaptiveCurrentMode) {
+      case AdaptiveMode::SerializedProfile:
+        return adaptiveFetchWidthFromParam(adaptiveSerializedFetchWidth);
+      case AdaptiveMode::HighMLPProfile:
+        return adaptiveFetchWidthFromParam(adaptiveHighMLPFetchWidth);
+      case AdaptiveMode::ControlProfile:
+        return adaptiveFetchWidthFromParam(adaptiveControlFetchWidth);
+      case AdaptiveMode::ResourceProfile:
+        return adaptiveFetchWidthFromParam(adaptiveResourceFetchWidth);
+      case AdaptiveMode::Conservative:
+        return adaptiveFetchWidthFromParam(adaptiveConservativeFetch);
+      case AdaptiveMode::Aggressive:
+      default:
+        return adaptiveAggressiveFetch;
+    }
+}
+
+unsigned
+CPU::adaptiveRenameWidth(unsigned base_width) const
+{
+    if (!adaptiveEnable) {
+        return base_width;
+    }
+    const unsigned lim = adaptiveEffectiveRenameWidthLimit();
+    if (lim == 0) {
+        return base_width;
+    }
+    return std::max(1u, std::min(base_width, lim));
+}
+
+unsigned
+CPU::adaptiveDispatchWidth(unsigned base_width) const
+{
+    if (!adaptiveEnable) {
+        return base_width;
+    }
+    const unsigned lim = adaptiveEffectiveDispatchWidthLimit();
+    if (lim == 0) {
+        return base_width;
+    }
+    return std::max(1u, std::min(base_width, lim));
+}
+
+bool
+CPU::adaptiveShouldThrottleFetch()
+{
+    if (!adaptiveEnable) {
+        return false;
+    }
+    if (numThreads == 0) {
+        return false;
+    }
+    const unsigned rob_occupancy = rob.getThreadEntries(0);
+    const unsigned inflight_cap = adaptiveEffectiveInflightCap();
+    if (rob_occupancy >= inflight_cap) {
+        return true;
+    }
+    if (adaptiveConservativeIQCap > 0) {
+        const unsigned iq_occupancy = iew.instQueue.getCount(0);
+        if (iq_occupancy >= adaptiveConservativeIQCap) {
+            return true;
+        }
+    }
+    if (adaptiveConservativeLSQCap > 0) {
+        const unsigned lsq_occupancy = iew.ldstQueue.getCount(0);
+        if (lsq_occupancy >= adaptiveConservativeLSQCap) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void
+CPU::adaptiveNoteFetchedInst(uint64_t count)
+{
+    if (adaptiveEnable) {
+        adaptiveWindowStats.fetchedInsts += count;
+    }
+}
+
+void
+CPU::adaptiveNoteCommittedInst(uint64_t count)
+{
+    if (adaptiveEnable) {
+        adaptiveWindowStats.committedInsts += count;
+    }
+}
+
+void
+CPU::adaptiveNoteSquashedInst(uint64_t count)
+{
+    if (adaptiveEnable) {
+        adaptiveWindowStats.squashedInsts += count;
+    }
+}
+
+void
+CPU::adaptiveNoteBranchMispredict(uint64_t count)
+{
+    if (adaptiveEnable) {
+        adaptiveWindowStats.branchMispredictEvents += count;
+    }
+}
+
+void
+CPU::adaptiveRecordCycleSignals()
+{
+    if (numThreads == 0) {
+        return;
+    }
+
+    auto &w = adaptiveWindowStats;
+    w.cycles++;
+
+    const unsigned rob_occupancy = rob.getThreadEntries(0);
+    const unsigned iq_occupancy = iew.instQueue.getCount(0);
+    const unsigned lq_occupancy_proxy = iew.ldstQueue.getCount(0);
+
+    w.inflightInstSamples += rob_occupancy;
+    w.iqOccupancySamples += iq_occupancy;
+    w.outstandingMissSamples += lq_occupancy_proxy;
+
+    if (iew.instQueue.isFull(0)) {
+        w.iqSaturationCycles++;
+    }
+
+    if (commit.isSquashing(0)) {
+        w.branchRecoveryCycles++;
+    }
+
+    const bool head_not_ready =
+        (rob_occupancy > 0) && !rob.isHeadReady(0);
+    const bool mem_backpressured =
+        iew.ldstQueue.isStalled(0) ||
+        iew.ldstQueue.hasStoresToWB(0) ||
+        iew.ldstQueue.cacheBlocked();
+    if (head_not_ready && mem_backpressured) {
+        w.commitBlockedMemCycles++;
+    }
+}
+
+CPU::AdaptiveClass
+CPU::adaptiveClassifyWindow(const AdaptiveWindowStats &window) const
+{
+    const double cycles = std::max<uint64_t>(window.cycles, 1);
+    const double mem_block_ratio = safeRatio(
+        window.commitBlockedMemCycles, window.cycles);
+    const double avg_outstanding_misses_proxy =
+        static_cast<double>(window.outstandingMissSamples) / cycles;
+    const double branch_recovery_ratio = safeRatio(
+        window.branchRecoveryCycles, window.cycles);
+    const double squash_ratio = safeRatio(
+        window.squashedInsts, std::max<uint64_t>(window.fetchedInsts, 1));
+    const double iq_saturation_ratio = safeRatio(
+        window.iqSaturationCycles, window.cycles);
+    const double commit_activity_ratio = safeRatio(
+        window.committedInsts, std::max<uint64_t>(window.fetchedInsts, 1));
+
+    if (mem_block_ratio >= adaptiveMemBlockRatioThres) {
+        if (avg_outstanding_misses_proxy >= adaptiveOutstandingMissThres) {
+            return AdaptiveClass::HighMLPMemoryDominated;
+        }
+        return AdaptiveClass::SerializedMemoryDominated;
+    }
+
+    if (branch_recovery_ratio >= adaptiveBranchRecoveryRatioThres &&
+        squash_ratio >= adaptiveSquashRatioThres) {
+        return AdaptiveClass::ControlDominated;
+    }
+
+    if (iq_saturation_ratio >= adaptiveIQSaturationRatioThres &&
+        commit_activity_ratio >= adaptiveCommitActivityRatioThres) {
+        return AdaptiveClass::ResourceContentionDominated;
+    }
+
+    return AdaptiveClass::ResourceContentionDominated;
+}
+
+CPU::AdaptiveMode
+CPU::adaptiveMapClassToMode(AdaptiveClass cls) const
+{
+    if (adaptiveUseClassProfiles) {
+        return adaptiveMapClassToProfile(cls);
+    }
+
+    switch (cls) {
+      case AdaptiveClass::SerializedMemoryDominated:
+      case AdaptiveClass::ControlDominated:
+        return AdaptiveMode::Conservative;
+      case AdaptiveClass::HighMLPMemoryDominated:
+      case AdaptiveClass::ResourceContentionDominated:
+      default:
+        return AdaptiveMode::Aggressive;
+    }
+}
+
+CPU::AdaptiveMode
+CPU::adaptiveMapClassToProfile(AdaptiveClass cls) const
+{
+    switch (cls) {
+      case AdaptiveClass::SerializedMemoryDominated:
+        return AdaptiveMode::SerializedProfile;
+      case AdaptiveClass::HighMLPMemoryDominated:
+        return AdaptiveMode::HighMLPProfile;
+      case AdaptiveClass::ControlDominated:
+        return AdaptiveMode::ControlProfile;
+      case AdaptiveClass::ResourceContentionDominated:
+      default:
+        return AdaptiveMode::ResourceProfile;
+    }
+}
+
+std::string
+CPU::adaptiveClassName(AdaptiveClass cls) const
+{
+    switch (cls) {
+      case AdaptiveClass::SerializedMemoryDominated:
+        return "Serialized-memory dominated";
+      case AdaptiveClass::HighMLPMemoryDominated:
+        return "High-MLP memory dominated";
+      case AdaptiveClass::ControlDominated:
+        return "Control dominated";
+      case AdaptiveClass::ResourceContentionDominated:
+      default:
+        return "Resource-contention / compute dominated";
+    }
+}
+
+std::string
+CPU::adaptiveModeName(AdaptiveMode mode) const
+{
+    switch (mode) {
+      case AdaptiveMode::SerializedProfile:
+        return "serialized-profile";
+      case AdaptiveMode::HighMLPProfile:
+        return "high-mlp-profile";
+      case AdaptiveMode::ControlProfile:
+        return "control-profile";
+      case AdaptiveMode::ResourceProfile:
+        return "resource-profile";
+      case AdaptiveMode::Conservative:
+        return "conservative";
+      case AdaptiveMode::Aggressive:
+      default:
+        return "aggressive";
+    }
+}
+
+void
+CPU::adaptiveMaybeSwitch(AdaptiveClass new_class, AdaptiveMode target_mode)
+{
+    if (new_class != adaptivePendingClass) {
+        adaptivePendingClass = new_class;
+        adaptivePendingClassCount = 1;
+    } else {
+        adaptivePendingClassCount++;
+    }
+    adaptiveCurrentClass = new_class;
+
+    if (target_mode == adaptiveCurrentMode) {
+        adaptiveWindowsInMode++;
+        return;
+    }
+
+    const bool hysteresis_ok =
+        adaptivePendingClassCount >= adaptiveSwitchHysteresis;
+    const bool hold_ok = adaptiveWindowsInMode >= adaptiveMinModeWindows;
+    if (hysteresis_ok && hold_ok) {
+        adaptiveCurrentMode = target_mode;
+        adaptiveWindowsInMode = 0;
+    } else {
+        adaptiveWindowsInMode++;
+    }
+}
+
+void
+CPU::adaptiveEmitWindowLog(
+    const AdaptiveWindowStats &window, AdaptiveClass cls,
+    AdaptiveMode target_mode, bool switched)
+{
+    const double cycles = std::max<uint64_t>(window.cycles, 1);
+    const double avg_outstanding_misses_proxy =
+        static_cast<double>(window.outstandingMissSamples) / cycles;
+    const double avg_iq_occupancy =
+        static_cast<double>(window.iqOccupancySamples) / cycles;
+    const double iq_saturation_ratio = safeRatio(
+        window.iqSaturationCycles, window.cycles);
+    const double branch_recovery_ratio = safeRatio(
+        window.branchRecoveryCycles, window.cycles);
+    const double squash_ratio = safeRatio(
+        window.squashedInsts, std::max<uint64_t>(window.fetchedInsts, 1));
+    const double commit_activity_ratio = safeRatio(
+        window.committedInsts, std::max<uint64_t>(window.fetchedInsts, 1));
+    const double avg_inflight_proxy =
+        static_cast<double>(window.inflightInstSamples) / cycles;
+
+    auto &os = *adaptiveWindowLog->stream();
+    os << adaptiveWindowId << ","
+       << window.cycles << ","
+       << adaptiveClassName(cls) << ","
+       << adaptiveModeName(target_mode) << ","
+       << adaptiveModeName(adaptiveCurrentMode) << ","
+       << (switched ? "1" : "0") << ","
+       << window.fetchedInsts << ","
+       << window.committedInsts << ","
+       << window.squashedInsts << ","
+       << window.branchMispredictEvents << ","
+       << window.commitBlockedMemCycles << ","
+       << avg_outstanding_misses_proxy << ","
+       << avg_iq_occupancy << ","
+       << iq_saturation_ratio << ","
+       << branch_recovery_ratio << ","
+       << squash_ratio << ","
+       << commit_activity_ratio << ","
+       << avg_inflight_proxy << "\n";
+    os.flush();
+
+    const auto class_name = adaptiveClassName(cls);
+    const auto target_mode_name = adaptiveModeName(target_mode);
+    const auto current_mode_name = adaptiveModeName(adaptiveCurrentMode);
+    DPRINTF(O3CPU,
+        "Adaptive window=%llu class=%s target_mode=%s applied_mode=%s switched=%d\n",
+        adaptiveWindowId, class_name.c_str(), target_mode_name.c_str(),
+        current_mode_name.c_str(), switched);
+}
+
+void
+CPU::adaptiveAdvanceWindow()
+{
+    if (adaptiveWindowStats.cycles < adaptiveWindowCycles) {
+        return;
+    }
+
+    adaptiveWindowId++;
+    const auto window = adaptiveWindowStats;
+    AdaptiveClass cls = adaptiveClassifyWindow(window);
+    AdaptiveMode target_mode = adaptiveMapClassToMode(cls);
+    const auto prev_mode = adaptiveCurrentMode;
+    adaptiveMaybeSwitch(cls, target_mode);
+    adaptiveEmitWindowLog(window, cls, target_mode, prev_mode != adaptiveCurrentMode);
+
+    adaptiveWindowStats = AdaptiveWindowStats{};
 }
 
 void

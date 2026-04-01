@@ -1,0 +1,9 @@
+timestamp=2026-03-11T22:00:43-04:00
+outdir=/home/rock/project/gem5/runs/adaptive/v1/branch_entropy/latest
+maxinsts=50000000
+window_cycles=5000
+workload_path=workloads/branch_entropy/bin/arm/linux/branch_entropy
+workload_args=32768 1024 1
+run_tag=branch_entropy
+summary_file=/home/rock/project/gem5/runs/adaptive/v1/branch_entropy/latest/adaptive_config_summary.md
+cmd=/home/rock/project/gem5/build/ARM/gem5.opt --outdir=/home/rock/project/gem5/runs/adaptive/v1/branch_entropy/latest /home/rock/project/gem5/configs/deprecated/example/se.py -n 1 --cpu-type=DerivO3CPU --caches --l2cache --mem-size=2GB --maxinsts=50000000 --param system.cpu\[0\].enableStallAdaptive=True --param system.cpu\[0\].adaptiveWindowCycles=5000 --param system.cpu\[0\].adaptiveSwitchHysteresis=2 --param system.cpu\[0\].adaptiveMinModeWindows=2 --param system.cpu\[0\].adaptiveConservativeFetchWidth=2 --param system.cpu\[0\].adaptiveConservativeInflightCap=96 -c workloads/branch_entropy/bin/arm/linux/branch_entropy --options=32768\ 1024\ 1

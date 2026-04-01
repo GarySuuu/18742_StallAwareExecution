@@ -47,9 +47,11 @@
 #include <list>
 #include <queue>
 #include <set>
+#include <string>
 #include <vector>
 
 #include "arch/generic/pcstate.hh"
+#include "base/output.hh"
 #include "base/statistics.hh"
 #include "cpu/o3/comm.hh"
 #include "cpu/o3/commit.hh"
@@ -109,6 +111,24 @@ class CPU : public BaseCPU
 
     BaseMMU *mmu;
     using LSQRequest = LSQ::LSQRequest;
+
+    enum class AdaptiveClass
+    {
+        SerializedMemoryDominated,
+        HighMLPMemoryDominated,
+        ControlDominated,
+        ResourceContentionDominated
+    };
+
+    enum class AdaptiveMode
+    {
+        Aggressive,
+        Conservative,
+        SerializedProfile,
+        HighMLPProfile,
+        ControlProfile,
+        ResourceProfile
+    };
 
     /** Overall CPU status. */
     Status _status;
@@ -186,6 +206,16 @@ class CPU : public BaseCPU
      *  activity to see if the CPU should deschedule itself.
      */
     void tick();
+
+    bool adaptiveEnabled() const { return adaptiveEnable; }
+    unsigned adaptiveFetchWidth() const;
+    unsigned adaptiveRenameWidth(unsigned base_width) const;
+    unsigned adaptiveDispatchWidth(unsigned base_width) const;
+    bool adaptiveShouldThrottleFetch();
+    void adaptiveNoteFetchedInst(uint64_t count = 1);
+    void adaptiveNoteCommittedInst(uint64_t count = 1);
+    void adaptiveNoteSquashedInst(uint64_t count = 1);
+    void adaptiveNoteBranchMispredict(uint64_t count = 1);
 
     /** Initialize the CPU */
     void init() override;
@@ -479,6 +509,83 @@ class CPU : public BaseCPU
      * itself.
      */
     ActivityRecorder activityRec;
+
+    struct AdaptiveWindowStats
+    {
+        uint64_t cycles = 0;
+        uint64_t fetchedInsts = 0;
+        uint64_t committedInsts = 0;
+        uint64_t squashedInsts = 0;
+        uint64_t branchMispredictEvents = 0;
+        uint64_t commitBlockedMemCycles = 0;
+        uint64_t iqSaturationCycles = 0;
+        uint64_t branchRecoveryCycles = 0;
+        uint64_t inflightInstSamples = 0;
+        uint64_t iqOccupancySamples = 0;
+        uint64_t outstandingMissSamples = 0;
+    };
+
+    bool adaptiveEnable = false;
+    unsigned adaptiveWindowCycles = 5000;
+    unsigned adaptiveSwitchHysteresis = 2;
+    unsigned adaptiveMinModeWindows = 2;
+    unsigned adaptiveAggressiveFetch = 8;
+    unsigned adaptiveConservativeFetch = 2;
+    unsigned adaptiveConservativeInflightCap = 96;
+    unsigned adaptiveConservativeIQCap = 0;
+    unsigned adaptiveConservativeLSQCap = 0;
+    unsigned adaptiveConservativeRenameWidth = 0;
+    unsigned adaptiveConservativeDispatchWidth = 0;
+    bool adaptiveUseClassProfiles = false;
+    unsigned adaptiveSerializedFetchWidth = 2;
+    unsigned adaptiveSerializedInflightCap = 64;
+    unsigned adaptiveSerializedRenameWidth = 4;
+    unsigned adaptiveSerializedDispatchWidth = 4;
+    unsigned adaptiveHighMLPFetchWidth = 0;
+    unsigned adaptiveHighMLPInflightCap = 0;
+    unsigned adaptiveHighMLPRenameWidth = 0;
+    unsigned adaptiveHighMLPDispatchWidth = 0;
+    unsigned adaptiveControlFetchWidth = 2;
+    unsigned adaptiveControlInflightCap = 96;
+    unsigned adaptiveControlRenameWidth = 4;
+    unsigned adaptiveControlDispatchWidth = 4;
+    unsigned adaptiveResourceFetchWidth = 0;
+    unsigned adaptiveResourceInflightCap = 128;
+    unsigned adaptiveResourceRenameWidth = 6;
+    unsigned adaptiveResourceDispatchWidth = 6;
+    double adaptiveMemBlockRatioThres = 0.15;
+    double adaptiveOutstandingMissThres = 8.0;
+    double adaptiveBranchRecoveryRatioThres = 0.10;
+    double adaptiveSquashRatioThres = 0.20;
+    double adaptiveIQSaturationRatioThres = 0.10;
+    double adaptiveCommitActivityRatioThres = 0.20;
+
+    uint64_t adaptiveWindowId = 0;
+    uint64_t adaptiveWindowsInMode = 0;
+    uint64_t adaptivePendingClassCount = 0;
+    AdaptiveClass adaptiveCurrentClass = AdaptiveClass::ResourceContentionDominated;
+    AdaptiveClass adaptivePendingClass = AdaptiveClass::ResourceContentionDominated;
+    AdaptiveMode adaptiveCurrentMode = AdaptiveMode::Aggressive;
+    AdaptiveWindowStats adaptiveWindowStats;
+    OutputStream *adaptiveWindowLog = nullptr;
+
+    void adaptiveRecordCycleSignals();
+    AdaptiveClass adaptiveClassifyWindow(
+        const AdaptiveWindowStats &window) const;
+    AdaptiveMode adaptiveMapClassToProfile(AdaptiveClass cls) const;
+    AdaptiveMode adaptiveMapClassToMode(AdaptiveClass cls) const;
+    std::string adaptiveClassName(AdaptiveClass cls) const;
+    std::string adaptiveModeName(AdaptiveMode mode) const;
+    void adaptiveMaybeSwitch(AdaptiveClass new_class, AdaptiveMode target_mode);
+    void adaptiveEmitWindowLog(
+        const AdaptiveWindowStats &window, AdaptiveClass cls,
+        AdaptiveMode target_mode, bool switched);
+    void adaptiveAdvanceWindow();
+    unsigned adaptiveFetchWidthFromParam(unsigned param) const;
+    unsigned adaptiveInflightCapFromParam(unsigned param) const;
+    unsigned adaptiveEffectiveInflightCap() const;
+    unsigned adaptiveEffectiveRenameWidthLimit() const;
+    unsigned adaptiveEffectiveDispatchWidthLimit() const;
 
   public:
     /** Records that there was time buffer activity this cycle. */

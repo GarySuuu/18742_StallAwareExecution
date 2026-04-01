@@ -1,0 +1,594 @@
+McPAT (version 0.8 of Aug, 2010) is computing the target processor...
+
+
+McPAT (version 0.8 of Aug, 2010) results  (current print level is 5)
+*****************************************************************************************
+  Technology 40 nm
+  Interconnect metal projection = conservative interconnect technology projection
+  Target Clock Rate (MHz) 2000
+
+*****************************************************************************************
+  System:
+    Area = 27.2411 mm^2
+    Peak Dynamic Power = 10.7909 W
+    Subthreshold Leakage Power = 9.28566 W
+    Gate Leakage Power = 0.330607 W
+    Runtime Dynamic Power = 74.5889 W
+    Runtime Dynamic Energy = 0.968419 J
+    Total Runtime Energy = 1.09327 J
+
+      Core 0:
+        Area = 14.2041 mm^2
+        Peak Dynamic Power = 10.6481 W
+        Subthreshold Leakage Power = 4.9452 W
+        Gate Leakage Power = 0.219718 W
+        Runtime Dynamic Power = 74.5561 W
+        Runtime Dynamic Energy = 0.967993 J
+        Total Runtime Energy = 1.03505 J
+
+          Instruction Fetch Unit:
+            Area = 1.61048 mm^2
+            Peak Dynamic Power = 1.36799 W
+            Subthreshold Leakage Power = 0.226901 W
+            Gate Leakage Power = 0.00533246 W
+            Runtime Dynamic Power = 0.10209 W
+            Runtime Dynamic Energy = 0.00132547 J
+            Total Runtime Energy = 0.00434066 J
+
+              Instruction Cache:
+                Area = 0.970326 mm^2
+                Peak Dynamic Power = 0.064624 W
+                Subthreshold Leakage Power = 0.0678485 W
+                Gate Leakage Power = 0.00157419 W
+                Runtime Dynamic Power = 0.00657399 W
+                Runtime Dynamic Energy = 8.53528e-05 J
+                Total Runtime Energy = 0.000986696 J
+
+                  Data and Tag Arrays:
+                    Area = 0.25887 mm^2
+                    Peak Dynamic Power = 0 W
+                    Subthreshold Leakage Power = 0.0622886 W
+                    Gate Leakage Power = 0.00129234 W
+                    Runtime Dynamic Power = 0.00657394 W
+                    Runtime Dynamic Energy = 8.53521e-05 J
+                    Total Runtime Energy = 0.00091085 J
+
+                  Miss Buffer:
+                    Area = 0.262959 mm^2
+                    Peak Dynamic Power = 0.0226903 W
+                    Subthreshold Leakage Power = 0.00194663 W
+                    Gate Leakage Power = 9.86469e-05 W
+                    Runtime Dynamic Power = 1.82475e-08 W
+                    Runtime Dynamic Energy = 2.36915e-10 J
+                    Total Runtime Energy = 2.65549e-05 J
+
+                  Fill Buffer:
+                    Area = 0.224249 mm^2
+                    Peak Dynamic Power = 0.0209669 W
+                    Subthreshold Leakage Power = 0.00180662 W
+                    Gate Leakage Power = 9.16038e-05 W
+                    Runtime Dynamic Power = 1.67874e-08 W
+                    Runtime Dynamic Energy = 2.17957e-10 J
+                    Total Runtime Energy = 2.46457e-05 J
+
+                  Prefetch Buffer:
+                    Area = 0.224249 mm^2
+                    Peak Dynamic Power = 0.0209669 W
+                    Subthreshold Leakage Power = 0.00180662 W
+                    Gate Leakage Power = 9.16038e-05 W
+                    Runtime Dynamic Power = 1.67874e-08 W
+                    Runtime Dynamic Energy = 2.17957e-10 J
+                    Total Runtime Energy = 2.46457e-05 J
+
+              Branch Target Buffer:
+                Area = 0.229775 mm^2
+                Peak Dynamic Power = 0.0323054 W
+                Subthreshold Leakage Power = 0.0389956 W
+                Gate Leakage Power = 0.000887392 W
+                Runtime Dynamic Power = 0.00185338 W
+                Runtime Dynamic Energy = 2.40632e-05 J
+                Total Runtime Energy = 0.000541881 J
+
+              Branch Predictor:
+                Area = 0.364134 mm^2
+                Peak Dynamic Power = 0 W
+                Subthreshold Leakage Power = 0.112326 W
+                Gate Leakage Power = 0.00263182 W
+                Runtime Dynamic Power = 0.0324758 W
+                Runtime Dynamic Energy = 0.000421647 J
+                Total Runtime Energy = 0.00191419 J
+
+                  Global Predictor:
+                    Area = 0.129022 mm^2
+                    Peak Dynamic Power = 0 W
+                    Subthreshold Leakage Power = 0.0419609 W
+                    Gate Leakage Power = 0.000962899 W
+                    Runtime Dynamic Power = 0.0119947 W
+                    Runtime Dynamic Energy = 0.000155732 J
+                    Total Runtime Energy = 0.00071303 J
+
+                  Local Predictor, Level 1:
+                    Area = 0.0544156 mm^2
+                    Peak Dynamic Power = 0 W
+                    Subthreshold Leakage Power = 0.0159313 W
+                    Gate Leakage Power = 0.000389269 W
+                    Runtime Dynamic Power = 0.00682675 W
+                    Runtime Dynamic Energy = 8.86346e-05 J
+                    Total Runtime Energy = 0.000300532 J
+
+                  Local Predictor, Level 2:
+                    Area = 0.0363446 mm^2
+                    Peak Dynamic Power = 0 W
+                    Subthreshold Leakage Power = 0.0107581 W
+                    Gate Leakage Power = 0.000267545 W
+                    Runtime Dynamic Power = 0.00165971 W
+                    Runtime Dynamic Energy = 2.15487e-05 J
+                    Total Runtime Energy = 0.000164699 J
+
+                  Predictor Chooser:
+                    Area = 0.129022 mm^2
+                    Peak Dynamic Power = 0 W
+                    Subthreshold Leakage Power = 0.0419609 W
+                    Gate Leakage Power = 0.000962899 W
+                    Runtime Dynamic Power = 0.0119947 W
+                    Runtime Dynamic Energy = 0.000155732 J
+                    Total Runtime Energy = 0.00071303 J
+
+                  RAS:
+                    Area = 0.0153301 mm^2
+                    Peak Dynamic Power = 0 W
+                    Subthreshold Leakage Power = 0.0017144 W
+                    Gate Leakage Power = 4.92127e-05 W
+                    Runtime Dynamic Power = 0 W
+                    Runtime Dynamic Energy = 0 J
+                    Total Runtime Energy = 2.28977e-05 J
+
+              Instruction Buffer:
+                Area = 0.0215393 mm^2
+                Peak Dynamic Power = 0.209215 W
+                Subthreshold Leakage Power = 0.00234771 W
+                Gate Leakage Power = 5.98161e-05 W
+                Runtime Dynamic Power = 0.0100713 W
+                Runtime Dynamic Energy = 0.000130759 J
+                Total Runtime Energy = 0.000162017 J
+
+              Instruction Opcode Decoder:
+                Area = 0.0115958 mm^2
+                Peak Dynamic Power = 0.354159 W
+                Subthreshold Leakage Power = 0.00253168 W
+                Gate Leakage Power = 8.37387e-05 W
+                Runtime Dynamic Power = 0.0170486 W
+                Runtime Dynamic Energy = 0.00022135 J
+                Total Runtime Energy = 0.000255307 J
+
+              Instruction Operand Decoder:
+                Area = 0.00150936 mm^2
+                Peak Dynamic Power = 0.353523 W
+                Subthreshold Leakage Power = 0.00032028 W
+                Gate Leakage Power = 1.17596e-05 W
+                Runtime Dynamic Power = 0.017018 W
+                Runtime Dynamic Energy = 0.000220952 J
+                Total Runtime Energy = 0.000225263 J
+
+              Instruction Microcode Decoder:
+                Area = 0.0115958 mm^2
+                Peak Dynamic Power = 0.354159 W
+                Subthreshold Leakage Power = 0.00253168 W
+                Gate Leakage Power = 8.37387e-05 W
+                Runtime Dynamic Power = 0.0170486 W
+                Runtime Dynamic Energy = 0.00022135 J
+                Total Runtime Energy = 0.000255307 J
+
+          Load/Store Unit:
+            Area = 1.45855 mm^2
+            Peak Dynamic Power = 0.208566 W
+            Subthreshold Leakage Power = 0.158229 W
+            Gate Leakage Power = 0.00395834 W
+            Runtime Dynamic Power = 0.0576139 W
+            Runtime Dynamic Energy = 0.000748025 J
+            Total Runtime Energy = 0.00285377 J
+
+              Data Cache:
+                Area = 1.33684 mm^2
+                Peak Dynamic Power = 0.109285 W
+                Subthreshold Leakage Power = 0.141928 W
+                Gate Leakage Power = 0.00336344 W
+                Runtime Dynamic Power = 0.0455906 W
+                Runtime Dynamic Energy = 0.000591922 J
+                Total Runtime Energy = 0.0024783 J
+
+                  Data and Tag Arrays:
+                    Area = 0.372569 mm^2
+                    Peak Dynamic Power = 0 W
+                    Subthreshold Leakage Power = 0.123745 W
+                    Gate Leakage Power = 0.00251158 W
+                    Runtime Dynamic Power = 0.041264 W
+                    Runtime Dynamic Energy = 0.000535748 J
+                    Total Runtime Energy = 0.00217499 J
+
+                  Miss Buffer:
+                    Area = 0.270528 mm^2
+                    Peak Dynamic Power = 0.0288322 W
+                    Subthreshold Leakage Power = 0.0048041 W
+                    Gate Leakage Power = 0.000224896 W
+                    Runtime Dynamic Power = 0.00152337 W
+                    Runtime Dynamic Energy = 1.97785e-05 J
+                    Total Runtime Energy = 8.5072e-05 J
+
+                  Fill Buffer:
+                    Area = 0.231248 mm^2
+                    Peak Dynamic Power = 0.0268178 W
+                    Subthreshold Leakage Power = 0.00445956 W
+                    Gate Leakage Power = 0.000208987 W
+                    Runtime Dynamic Power = 0.00140164 W
+                    Runtime Dynamic Energy = 1.81981e-05 J
+                    Total Runtime Energy = 7.88118e-05 J
+
+                  Prefetch Buffer:
+                    Area = 0.231248 mm^2
+                    Peak Dynamic Power = 0.0268178 W
+                    Subthreshold Leakage Power = 0.00445956 W
+                    Gate Leakage Power = 0.000208987 W
+                    Runtime Dynamic Power = 0.000266015 W
+                    Runtime Dynamic Energy = 3.45378e-06 J
+                    Total Runtime Energy = 6.40675e-05 J
+
+                  Writeback Buffer:
+                    Area = 0.231248 mm^2
+                    Peak Dynamic Power = 0.0268178 W
+                    Subthreshold Leakage Power = 0.00445956 W
+                    Gate Leakage Power = 0.000208987 W
+                    Runtime Dynamic Power = 0.00113563 W
+                    Runtime Dynamic Energy = 1.47443e-05 J
+                    Total Runtime Energy = 7.5358e-05 J
+
+              Load Queue:
+                Area = 0.0608565 mm^2
+                Peak Dynamic Power = 0.0496405 W
+                Subthreshold Leakage Power = 0.00815046 W
+                Gate Leakage Power = 0.000297452 W
+                Runtime Dynamic Power = 0.00400774 W
+                Runtime Dynamic Energy = 5.20342e-05 J
+                Total Runtime Energy = 0.000161717 J
+
+              Store Queue:
+                Area = 0.0608565 mm^2
+                Peak Dynamic Power = 0.0496405 W
+                Subthreshold Leakage Power = 0.00815046 W
+                Gate Leakage Power = 0.000297452 W
+                Runtime Dynamic Power = 0.00801548 W
+                Runtime Dynamic Energy = 0.000104068 J
+                Total Runtime Energy = 0.000213751 J
+
+          Memory Management Unit:
+            Area = 0.331371 mm^2
+            Peak Dynamic Power = 0.374721 W
+            Subthreshold Leakage Power = 0.097099 W
+            Gate Leakage Power = 0.00441089 W
+            Runtime Dynamic Power = 0.0280951 W
+            Runtime Dynamic Energy = 0.00036477 J
+            Total Runtime Energy = 0.00168271 J
+
+              Instruction TLB:
+                Area = 0.131789 mm^2
+                Peak Dynamic Power = 0.177834 W
+                Subthreshold Leakage Power = 0.0446376 W
+                Gate Leakage Power = 0.00203139 W
+                Runtime Dynamic Power = 0.00960885 W
+                Runtime Dynamic Energy = 0.000124756 J
+                Total Runtime Energy = 0.000730678 J
+
+              Data TLB:
+                Area = 0.199582 mm^2
+                Peak Dynamic Power = 0.196887 W
+                Subthreshold Leakage Power = 0.0524614 W
+                Gate Leakage Power = 0.00237949 W
+                Runtime Dynamic Power = 0.0184862 W
+                Runtime Dynamic Energy = 0.000240014 J
+                Total Runtime Energy = 0.000952037 J
+
+          Execution Unit:
+            Area = 4.34618 mm^2
+            Peak Dynamic Power = 4.38702 W
+            Subthreshold Leakage Power = 1.21725 W
+            Gate Leakage Power = 0.0508622 W
+            Runtime Dynamic Power = 0.681032 W
+            Runtime Dynamic Energy = 0.00884212 J
+            Total Runtime Energy = 0.0253065 J
+
+              Int Bypass Data:
+                Area = 0.00243032 mm^2
+                Peak Dynamic Power = 0 W
+                Subthreshold Leakage Power = 0 W
+                Gate Leakage Power = 0 W
+                Runtime Dynamic Power = 0.0264873 W
+                Runtime Dynamic Energy = 0.000343896 J
+                Total Runtime Energy = 0.000343896 J
+
+              Int Bypass Tag:
+                Area = 0.000648315 mm^2
+                Peak Dynamic Power = 0 W
+                Subthreshold Leakage Power = 0 W
+                Gate Leakage Power = 0 W
+                Runtime Dynamic Power = 0.00706579 W
+                Runtime Dynamic Energy = 9.17381e-05 J
+                Total Runtime Energy = 9.17381e-05 J
+
+              Mul Bypass Data:
+                Area = 0.00323361 mm^2
+                Peak Dynamic Power = 0 W
+                Subthreshold Leakage Power = 0 W
+                Gate Leakage Power = 0 W
+                Runtime Dynamic Power = 3.65168e-09 W
+                Runtime Dynamic Energy = 4.74112e-11 J
+                Total Runtime Energy = 4.74112e-11 J
+
+              Mul Bypass Tag:
+                Area = 0.000748726 mm^2
+                Peak Dynamic Power = 0 W
+                Subthreshold Leakage Power = 0 W
+                Gate Leakage Power = 0 W
+                Runtime Dynamic Power = 8.45528e-10 W
+                Runtime Dynamic Energy = 1.09778e-11 J
+                Total Runtime Energy = 1.09778e-11 J
+
+              FP Bypass Data:
+                Area = 0.00382937 mm^2
+                Peak Dynamic Power = 0 W
+                Subthreshold Leakage Power = 0 W
+                Gate Leakage Power = 0 W
+                Runtime Dynamic Power = 0 W
+                Runtime Dynamic Energy = 0 J
+                Total Runtime Energy = 0 J
+
+              FP Bypass Tag:
+                Area = 0.000859143 mm^2
+                Peak Dynamic Power = 0 W
+                Subthreshold Leakage Power = 0 W
+                Gate Leakage Power = 0 W
+                Runtime Dynamic Power = 0 W
+                Runtime Dynamic Energy = 0 J
+                Total Runtime Energy = 0 J
+
+              Register File Unit:
+                Area = 0.195532 mm^2
+                Peak Dynamic Power = 1.02517 W
+                Subthreshold Leakage Power = 0.0212235 W
+                Gate Leakage Power = 0.000562443 W
+                Runtime Dynamic Power = 0.0208657 W
+                Runtime Dynamic Energy = 0.000270908 J
+                Total Runtime Energy = 0.000553763 J
+
+                  Integer Register File:
+                    Area = 0.130355 mm^2
+                    Peak Dynamic Power = 1.00399 W
+                    Subthreshold Leakage Power = 0.0106117 W
+                    Gate Leakage Power = 0.000281221 W
+                    Runtime Dynamic Power = 0.0208657 W
+                    Runtime Dynamic Energy = 0.000270908 J
+                    Total Runtime Energy = 0.000412335 J
+
+                  FP Register File:
+                    Area = 0.0651774 mm^2
+                    Peak Dynamic Power = 0.021183 W
+                    Subthreshold Leakage Power = 0.0106117 W
+                    Gate Leakage Power = 0.000281221 W
+                    Runtime Dynamic Power = 0 W
+                    Runtime Dynamic Energy = 0 J
+                    Total Runtime Energy = 0.000141428 J
+
+              Instruction Scheduler:
+                Area = 1.95138 mm^2
+                Peak Dynamic Power = 1.87107 W
+                Subthreshold Leakage Power = 0.0217879 W
+                Gate Leakage Power = 0.000602413 W
+                Runtime Dynamic Power = 0.181225 W
+                Runtime Dynamic Energy = 0.00235292 J
+                Total Runtime Energy = 0.00264362 J
+
+                  Integer Instruction Window:
+                    Area = 0.363343 mm^2
+                    Peak Dynamic Power = 0.462097 W
+                    Subthreshold Leakage Power = 0 W
+                    Gate Leakage Power = 0 W
+                    Runtime Dynamic Power = 0.0186205 W
+                    Runtime Dynamic Energy = 0.000241757 J
+                    Total Runtime Energy = 0.000241757 J
+
+                  FP Instruction Window:
+                    Area = 0.0387099 mm^2
+                    Peak Dynamic Power = 0.0287049 W
+                    Subthreshold Leakage Power = 0 W
+                    Gate Leakage Power = 0 W
+                    Runtime Dynamic Power = 0 W
+                    Runtime Dynamic Energy = 0 J
+                    Total Runtime Energy = 0 J
+
+                  Reorder Buffer:
+                    Area = 1.54933 mm^2
+                    Peak Dynamic Power = 1.38027 W
+                    Subthreshold Leakage Power = 0.0217879 W
+                    Gate Leakage Power = 0.000602413 W
+                    Runtime Dynamic Power = 0.162605 W
+                    Runtime Dynamic Energy = 0.00211116 J
+                    Total Runtime Energy = 0.00240187 J
+
+              Integer ALU(s):
+                Area = 0.138846 mm^2
+                Peak Dynamic Power = 0.379892 W
+                Subthreshold Leakage Power = 0.201977 W
+                Gate Leakage Power = 0.00854828 W
+                Runtime Dynamic Power = 0.123079 W
+                Runtime Dynamic Energy = 0.00159799 J
+                Total Runtime Energy = 0.00433132 J
+
+              Floating Point Unit(s):
+                Area = 1.8404 mm^2
+                Peak Dynamic Power = 0.666531 W
+                Subthreshold Leakage Power = 0.669296 W
+                Gate Leakage Power = 0.0283266 W
+                Runtime Dynamic Power = 0.193385 W
+                Runtime Dynamic Energy = 0.0025108 J
+                Total Runtime Energy = 0.0115683 J
+
+              Multiply/Divide Unit(s):
+                Area = 0.20827 mm^2
+                Peak Dynamic Power = 0.444354 W
+                Subthreshold Leakage Power = 0.302965 W
+                Gate Leakage Power = 0.0128224 W
+                Runtime Dynamic Power = 0.128924 W
+                Runtime Dynamic Energy = 0.00167387 J
+                Total Runtime Energy = 0.00577387 J
+
+          Undifferentiated Core:
+            Area = 3.88668 mm^2
+            Peak Dynamic Power = 0 W
+            Subthreshold Leakage Power = 2.82694 W
+            Gate Leakage Power = 0.119645 W
+            Runtime Dynamic Power = 0 W
+            Runtime Dynamic Energy = 0 J
+            Total Runtime Energy = 0.0382567 J
+
+          Rename Unit:
+            Area = 2.2017 mm^2
+            Peak Dynamic Power = 4.30975 W
+            Subthreshold Leakage Power = 0.116134 W
+            Gate Leakage Power = 0.00327432 W
+            Runtime Dynamic Power = 72.4026 W
+            Runtime Dynamic Energy = 0.940033 J
+            Total Runtime Energy = 0.941583 J
+
+              Int Front RAT:
+                Area = 1.42712 mm^2
+                Peak Dynamic Power = 1.97918 W
+                Subthreshold Leakage Power = 0.0262301 W
+                Gate Leakage Power = 0.00063006 W
+                Runtime Dynamic Power = 0.431469 W
+                Runtime Dynamic Energy = 0.00560194 J
+                Total Runtime Energy = 0.00595067 J
+
+              FP Front RAT:
+                Area = 0.196134 mm^2
+                Peak Dynamic Power = 0.462392 W
+                Subthreshold Leakage Power = 0.0164236 W
+                Gate Leakage Power = 0.00040475 W
+                Runtime Dynamic Power = 0 W
+                Runtime Dynamic Energy = 0 J
+                Total Runtime Energy = 0.00021849 J
+
+              Integer Free List:
+                Area = 0.39483 mm^2
+                Peak Dynamic Power = 0.0897328 W
+                Subthreshold Leakage Power = 0.00699427 W
+                Gate Leakage Power = 0.000164683 W
+                Runtime Dynamic Power = 0.0293348 W
+                Runtime Dynamic Energy = 0.000380866 J
+                Total Runtime Energy = 0.000473814 J
+
+              Int Retire RAT:
+                Area = 0.0712819 mm^2
+                Peak Dynamic Power = 0.0350735 W
+                Subthreshold Leakage Power = 0.00181796 W
+                Gate Leakage Power = 6.30899e-05 W
+                Runtime Dynamic Power = 0.00348619 W
+                Runtime Dynamic Energy = 4.52626e-05 J
+                Total Runtime Energy = 6.9685e-05 J
+
+              FP Retire RAT:
+                Area = 0.00751656 mm^2
+                Peak Dynamic Power = 0.00475521 W
+                Subthreshold Leakage Power = 0.000709488 W
+                Gate Leakage Power = 1.94961e-05 W
+                Runtime Dynamic Power = 0 W
+                Runtime Dynamic Energy = 0 J
+                Total Runtime Energy = 9.4647e-06 J
+
+              FP Free List:
+                Area = 0.104811 mm^2
+                Peak Dynamic Power = 0.0583279 W
+                Subthreshold Leakage Power = 0.00389602 W
+                Gate Leakage Power = 8.57288e-05 W
+                Runtime Dynamic Power = 0 W
+                Runtime Dynamic Energy = 0 J
+                Total Runtime Energy = 5.16967e-05 J
+
+              Instruction Dependency Check?:
+                Area = 0 mm^2
+                Peak Dynamic Power = 0.840145 W
+                Subthreshold Leakage Power = 0.0300312 W
+                Gate Leakage Power = 0.000953258 W
+                Runtime Dynamic Power = 71.9383 W
+                Runtime Dynamic Energy = 0.934005 J
+                Total Runtime Energy = 0.934407 J
+
+              FP Dependency Check?:
+                Area = 0 mm^2
+                Peak Dynamic Power = 0.840145 W
+                Subthreshold Leakage Power = 0.0300312 W
+                Gate Leakage Power = 0.000953258 W
+                Runtime Dynamic Power = 0 W
+                Runtime Dynamic Energy = 0 J
+                Total Runtime Energy = 0.000402284 J
+
+          Pipeline?:
+            Area = 0.36911 mm^2
+            Peak Dynamic Power = 0 W
+            Subthreshold Leakage Power = 0.302654 W
+            Gate Leakage Power = 0.0322355 W
+            Runtime Dynamic Power = 1.28465 W
+            Runtime Dynamic Energy = 0.0166791 J
+            Total Runtime Energy = 0.0210271 J
+
+      L2 Cache:
+        Area = 13.037 mm^2
+        Peak Dynamic Power = 0.142841 W
+        Subthreshold Leakage Power = 4.34046 W
+        Gate Leakage Power = 0.110888 W
+        Runtime Dynamic Power = 0.0328088 W
+        Runtime Dynamic Energy = 0.00042597 J
+        Total Runtime Energy = 0.0582197 J
+
+          Data and Tag Arrays:
+            Area = 12.0488 mm^2
+            Peak Dynamic Power = 0 W
+            Subthreshold Leakage Power = 4.31532 W
+            Gate Leakage Power = 0.109824 W
+            Runtime Dynamic Power = 0.0323402 W
+            Runtime Dynamic Energy = 0.000419886 J
+            Total Runtime Energy = 0.0578733 J
+
+          Miss Buffer:
+            Area = 0.281957 mm^2
+            Peak Dynamic Power = 0.0379821 W
+            Subthreshold Leakage Power = 0.00670028 W
+            Gate Leakage Power = 0.000283174 W
+            Runtime Dynamic Power = 0.000166391 W
+            Runtime Dynamic Energy = 2.16033e-06 J
+            Total Runtime Energy = 9.28294e-05 J
+
+          Fill Buffer:
+            Area = 0.235423 mm^2
+            Peak Dynamic Power = 0.0349529 W
+            Subthreshold Leakage Power = 0.00614777 W
+            Gate Leakage Power = 0.000260358 W
+            Runtime Dynamic Power = 0.000151105 W
+            Runtime Dynamic Energy = 1.96185e-06 J
+            Total Runtime Energy = 8.51613e-05 J
+
+          Prefetch Buffer:
+            Area = 0.235423 mm^2
+            Peak Dynamic Power = 0.0349529 W
+            Subthreshold Leakage Power = 0.00614777 W
+            Gate Leakage Power = 0.000260358 W
+            Runtime Dynamic Power = 3.77433e-05 W
+            Runtime Dynamic Energy = 4.90037e-07 J
+            Total Runtime Energy = 8.36895e-05 J
+
+          Writeback Buffer:
+            Area = 0.235423 mm^2
+            Peak Dynamic Power = 0.0349529 W
+            Subthreshold Leakage Power = 0.00614777 W
+            Gate Leakage Power = 0.000260358 W
+            Runtime Dynamic Power = 0.000113361 W
+            Runtime Dynamic Energy = 1.47182e-06 J
+            Total Runtime Energy = 8.46712e-05 J

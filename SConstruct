@@ -634,7 +634,19 @@ for variant_path in variant_paths:
                 [None, 'socket'], 'sys/socket.h', 'C++', 'accept(0,0,0);'):
            error("Can't find library with socket calls (e.g. accept()).")
 
-        if not conf.CheckLibWithHeader('z', 'zlib.h', 'C++','zlibVersion();'):
+        # Some Linux environments still require librt for POSIX timer and
+        # shared-memory symbols used by KVM/physical memory support.
+        if sys.platform.startswith('linux') and conf.CheckLib('rt'):
+            conf.env.Append(LIBS=['rt'])
+
+        zlib_found = False
+        if env['HAVE_PKG_CONFIG']:
+            zlib_found = conf.CheckPkgConfig('zlib', '--cflags', '--libs')
+        if not zlib_found:
+            zlib_found = conf.CheckLibWithHeader(
+                'z', 'zlib.h', 'C++', 'zlibVersion();'
+            )
+        if not zlib_found:
             error('Did not find needed zlib compression library '
                   'and/or zlib.h header file.\n'
                   'Please install zlib and try again.')
