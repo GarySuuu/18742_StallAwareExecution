@@ -271,13 +271,38 @@ class BaseO3CPU(BaseCPU):
         0, "Fetch width when class=Resource (0 keeps baseline width)"
     )
     adaptiveResourceInflightCap = Param.Unsigned(
-        128, "Inflight cap when class=Resource (0 disables)"
+        96, "Inflight cap when class=Resource (0 disables)"
     )
     adaptiveResourceRenameWidth = Param.Unsigned(
-        6, "Rename width cap when class=Resource (0 keeps baseline width)"
+        5, "Rename width cap when class=Resource (0 keeps baseline width)"
     )
     adaptiveResourceDispatchWidth = Param.Unsigned(
-        6, "Dispatch width cap when class=Resource (0 keeps baseline width)"
+        5, "Dispatch width cap when class=Resource (0 keeps baseline width)"
+    )
+    adaptiveResourceTightMaxInflightProxy = Param.Float(
+        24.0,
+        "When Resource windows stay below this avg inflight proxy, use the "
+        "tighter resource sub-profile (0 disables this arm)",
+    )
+    adaptiveResourceTightMinSquashRatio = Param.Float(
+        0.15,
+        "When Resource windows exceed this squash/fetch ratio, use the "
+        "tighter resource sub-profile (0 disables this arm)",
+    )
+    adaptiveResourceTightFetchWidth = Param.Unsigned(
+        2,
+        "Fetch width for tight Resource sub-profile (0 keeps baseline width)",
+    )
+    adaptiveResourceTightInflightCap = Param.Unsigned(
+        72, "Inflight cap for tight Resource sub-profile (0 disables)"
+    )
+    adaptiveResourceTightRenameWidth = Param.Unsigned(
+        4,
+        "Rename width cap for tight Resource sub-profile (0 keeps baseline width)",
+    )
+    adaptiveResourceTightDispatchWidth = Param.Unsigned(
+        4,
+        "Dispatch width cap for tight Resource sub-profile (0 keeps baseline width)",
     )
 
     adaptiveMemBlockRatioThres = Param.Float(
@@ -285,6 +310,11 @@ class BaseO3CPU(BaseCPU):
     )
     adaptiveOutstandingMissThres = Param.Float(
         8.0, "Threshold for avg outstanding misses proxy per window"
+    )
+    adaptiveHighMLPMaxInflightProxy = Param.Float(
+        32.0,
+        "Maximum avg inflight proxy allowed for High-MLP classification "
+        "(0 disables this guard)",
     )
     adaptiveBranchRecoveryRatioThres = Param.Float(
         0.10, "Threshold for branch-recovery-cycle ratio per window"

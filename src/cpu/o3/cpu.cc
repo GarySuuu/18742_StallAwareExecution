@@ -177,8 +177,18 @@ CPU::CPU(const BaseO3CPUParams &params)
     adaptiveResourceInflightCap = params.adaptiveResourceInflightCap;
     adaptiveResourceRenameWidth = params.adaptiveResourceRenameWidth;
     adaptiveResourceDispatchWidth = params.adaptiveResourceDispatchWidth;
+    adaptiveResourceTightMaxInflightProxy =
+        params.adaptiveResourceTightMaxInflightProxy;
+    adaptiveResourceTightMinSquashRatio =
+        params.adaptiveResourceTightMinSquashRatio;
+    adaptiveResourceTightFetchWidth = params.adaptiveResourceTightFetchWidth;
+    adaptiveResourceTightInflightCap = params.adaptiveResourceTightInflightCap;
+    adaptiveResourceTightRenameWidth = params.adaptiveResourceTightRenameWidth;
+    adaptiveResourceTightDispatchWidth =
+        params.adaptiveResourceTightDispatchWidth;
     adaptiveMemBlockRatioThres = params.adaptiveMemBlockRatioThres;
     adaptiveOutstandingMissThres = params.adaptiveOutstandingMissThres;
+    adaptiveHighMLPMaxInflightProxy = params.adaptiveHighMLPMaxInflightProxy;
     adaptiveBranchRecoveryRatioThres = params.adaptiveBranchRecoveryRatioThres;
     adaptiveSquashRatioThres = params.adaptiveSquashRatioThres;
     adaptiveIQSaturationRatioThres = params.adaptiveIQSaturationRatioThres;
@@ -191,7 +201,8 @@ CPU::CPU(const BaseO3CPUParams &params)
     if (adaptiveEnable) {
         adaptiveWindowLog = simout.create("adaptive_window_log.csv");
         auto &os = *adaptiveWindowLog->stream();
-        os << "window_id,cycles,class,target_mode,applied_mode,switched,"
+        os << "window_id,cycles,class,target_mode,applied_mode,"
+           << "resource_profile_level,switched,"
            << "fetched_insts,committed_insts,squashed_insts,branch_mispredicts,"
            << "commit_blocked_mem_cycles,avg_outstanding_misses_proxy,"
            << "avg_iq_occupancy,iq_saturation_ratio,branch_recovery_ratio,"
@@ -499,6 +510,10 @@ CPU::adaptiveEffectiveInflightCap() const
       case AdaptiveMode::ControlProfile:
         return adaptiveInflightCapFromParam(adaptiveControlInflightCap);
       case AdaptiveMode::ResourceProfile:
+        if (adaptiveCurrentResourceTight) {
+            return adaptiveInflightCapFromParam(
+                adaptiveResourceTightInflightCap);
+        }
         return adaptiveInflightCapFromParam(adaptiveResourceInflightCap);
       case AdaptiveMode::Conservative:
         return adaptiveInflightCapFromParam(adaptiveConservativeInflightCap);
@@ -519,6 +534,9 @@ CPU::adaptiveEffectiveRenameWidthLimit() const
       case AdaptiveMode::ControlProfile:
         return adaptiveControlRenameWidth;
       case AdaptiveMode::ResourceProfile:
+        if (adaptiveCurrentResourceTight) {
+            return adaptiveResourceTightRenameWidth;
+        }
         return adaptiveResourceRenameWidth;
       case AdaptiveMode::Conservative:
         return adaptiveConservativeRenameWidth;
@@ -539,6 +557,9 @@ CPU::adaptiveEffectiveDispatchWidthLimit() const
       case AdaptiveMode::ControlProfile:
         return adaptiveControlDispatchWidth;
       case AdaptiveMode::ResourceProfile:
+        if (adaptiveCurrentResourceTight) {
+            return adaptiveResourceTightDispatchWidth;
+        }
         return adaptiveResourceDispatchWidth;
       case AdaptiveMode::Conservative:
         return adaptiveConservativeDispatchWidth;
@@ -563,6 +584,9 @@ CPU::adaptiveFetchWidth() const
       case AdaptiveMode::ControlProfile:
         return adaptiveFetchWidthFromParam(adaptiveControlFetchWidth);
       case AdaptiveMode::ResourceProfile:
+        if (adaptiveCurrentResourceTight) {
+            return adaptiveFetchWidthFromParam(adaptiveResourceTightFetchWidth);
+        }
         return adaptiveFetchWidthFromParam(adaptiveResourceFetchWidth);
       case AdaptiveMode::Conservative:
         return adaptiveFetchWidthFromParam(adaptiveConservativeFetch);
@@ -712,10 +736,19 @@ CPU::adaptiveClassifyWindow(const AdaptiveWindowStats &window) const
         window.iqSaturationCycles, window.cycles);
     const double commit_activity_ratio = safeRatio(
         window.committedInsts, std::max<uint64_t>(window.fetchedInsts, 1));
+    const double avg_inflight_proxy =
+        static_cast<double>(window.inflightInstSamples) / cycles;
 
     if (mem_block_ratio >= adaptiveMemBlockRatioThres) {
         if (avg_outstanding_misses_proxy >= adaptiveOutstandingMissThres) {
-            return AdaptiveClass::HighMLPMemoryDominated;
+            const bool inflight_guard_disabled =
+                adaptiveHighMLPMaxInflightProxy <= 0.0;
+            const bool inflight_matches_high_mlp =
+                avg_inflight_proxy <= adaptiveHighMLPMaxInflightProxy;
+            if (inflight_guard_disabled || inflight_matches_high_mlp) {
+                return AdaptiveClass::HighMLPMemoryDominated;
+            }
+            return AdaptiveClass::ResourceContentionDominated;
         }
         return AdaptiveClass::SerializedMemoryDominated;
     }
@@ -765,6 +798,43 @@ CPU::adaptiveMapClassToProfile(AdaptiveClass cls) const
       default:
         return AdaptiveMode::ResourceProfile;
     }
+}
+
+bool
+CPU::adaptiveShouldUseTightResourceProfile(
+    const AdaptiveWindowStats &window, AdaptiveClass cls) const
+{
+    if (cls != AdaptiveClass::ResourceContentionDominated) {
+        return false;
+    }
+
+    const double cycles = std::max<uint64_t>(window.cycles, 1);
+    const double avg_inflight_proxy =
+        static_cast<double>(window.inflightInstSamples) / cycles;
+    const double squash_ratio = safeRatio(
+        window.squashedInsts, std::max<uint64_t>(window.fetchedInsts, 1));
+
+    const bool inflight_arm_enabled =
+        adaptiveResourceTightMaxInflightProxy > 0.0;
+    const bool squash_arm_enabled =
+        adaptiveResourceTightMinSquashRatio > 0.0;
+
+    const bool low_inflight_resource =
+        inflight_arm_enabled &&
+        avg_inflight_proxy <= adaptiveResourceTightMaxInflightProxy;
+    const bool squashy_resource =
+        squash_arm_enabled &&
+        squash_ratio >= adaptiveResourceTightMinSquashRatio;
+    return low_inflight_resource || squashy_resource;
+}
+
+std::string
+CPU::adaptiveResourceProfileLevel() const
+{
+    if (adaptiveCurrentMode != AdaptiveMode::ResourceProfile) {
+        return "na";
+    }
+    return adaptiveCurrentResourceTight ? "tight" : "base";
 }
 
 std::string
@@ -857,6 +927,7 @@ CPU::adaptiveEmitWindowLog(
        << adaptiveClassName(cls) << ","
        << adaptiveModeName(target_mode) << ","
        << adaptiveModeName(adaptiveCurrentMode) << ","
+       << adaptiveResourceProfileLevel() << ","
        << (switched ? "1" : "0") << ","
        << window.fetchedInsts << ","
        << window.committedInsts << ","
@@ -894,6 +965,8 @@ CPU::adaptiveAdvanceWindow()
     AdaptiveMode target_mode = adaptiveMapClassToMode(cls);
     const auto prev_mode = adaptiveCurrentMode;
     adaptiveMaybeSwitch(cls, target_mode);
+    adaptiveCurrentResourceTight =
+        adaptiveShouldUseTightResourceProfile(window, cls);
     adaptiveEmitWindowLog(window, cls, target_mode, prev_mode != adaptiveCurrentMode);
 
     adaptiveWindowStats = AdaptiveWindowStats{};

@@ -550,11 +550,18 @@ class CPU : public BaseCPU
     unsigned adaptiveControlRenameWidth = 4;
     unsigned adaptiveControlDispatchWidth = 4;
     unsigned adaptiveResourceFetchWidth = 0;
-    unsigned adaptiveResourceInflightCap = 128;
-    unsigned adaptiveResourceRenameWidth = 6;
-    unsigned adaptiveResourceDispatchWidth = 6;
+    unsigned adaptiveResourceInflightCap = 96;
+    unsigned adaptiveResourceRenameWidth = 5;
+    unsigned adaptiveResourceDispatchWidth = 5;
+    double adaptiveResourceTightMaxInflightProxy = 24.0;
+    double adaptiveResourceTightMinSquashRatio = 0.15;
+    unsigned adaptiveResourceTightFetchWidth = 2;
+    unsigned adaptiveResourceTightInflightCap = 72;
+    unsigned adaptiveResourceTightRenameWidth = 4;
+    unsigned adaptiveResourceTightDispatchWidth = 4;
     double adaptiveMemBlockRatioThres = 0.15;
     double adaptiveOutstandingMissThres = 8.0;
+    double adaptiveHighMLPMaxInflightProxy = 32.0;
     double adaptiveBranchRecoveryRatioThres = 0.10;
     double adaptiveSquashRatioThres = 0.20;
     double adaptiveIQSaturationRatioThres = 0.10;
@@ -566,6 +573,7 @@ class CPU : public BaseCPU
     AdaptiveClass adaptiveCurrentClass = AdaptiveClass::ResourceContentionDominated;
     AdaptiveClass adaptivePendingClass = AdaptiveClass::ResourceContentionDominated;
     AdaptiveMode adaptiveCurrentMode = AdaptiveMode::Aggressive;
+    bool adaptiveCurrentResourceTight = false;
     AdaptiveWindowStats adaptiveWindowStats;
     OutputStream *adaptiveWindowLog = nullptr;
 
@@ -581,6 +589,9 @@ class CPU : public BaseCPU
         const AdaptiveWindowStats &window, AdaptiveClass cls,
         AdaptiveMode target_mode, bool switched);
     void adaptiveAdvanceWindow();
+    bool adaptiveShouldUseTightResourceProfile(
+        const AdaptiveWindowStats &window, AdaptiveClass cls) const;
+    std::string adaptiveResourceProfileLevel() const;
     unsigned adaptiveFetchWidthFromParam(unsigned param) const;
     unsigned adaptiveInflightCapFromParam(unsigned param) const;
     unsigned adaptiveEffectiveInflightCap() const;

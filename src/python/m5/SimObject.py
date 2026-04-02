@@ -1205,7 +1205,16 @@ class SimObject(object, metaclass=MetaSimObject):
                     for v in value:
                         getattr(cc_params, param).append(v)
             else:
-                setattr(cc_params, param, value)
+                try:
+                    setattr(cc_params, param, value)
+                except TypeError:
+                    # Some generated pybind setters reject Python None for
+                    # optional SimObject pointer params even though the Python
+                    # side uses NULL as the default. Leave the C++ default in
+                    # place instead of failing object instantiation.
+                    if value is None:
+                        continue
+                    raise
 
         port_names = list(self._ports.keys())
         port_names.sort()
