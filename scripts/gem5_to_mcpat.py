@@ -60,6 +60,14 @@ def find_component(root: ET.Element, comp_id: str) -> ET.Element:
     return comp
 
 
+def find_first_component(root: ET.Element, *comp_ids: str) -> ET.Element:
+    for comp_id in comp_ids:
+        comp = root.find(f".//component[@id='{comp_id}']")
+        if comp is not None:
+            return comp
+    raise KeyError(f"Missing components {comp_ids}")
+
+
 def set_param(comp: ET.Element, name: str, value) -> None:
     elem = comp.find(f"./param[@name='{name}']")
     if elem is None:
@@ -72,6 +80,77 @@ def set_stat(comp: ET.Element, name: str, value) -> None:
     if elem is None:
         raise KeyError(f"Missing stat {name} in {comp.attrib.get('id')}")
     elem.set("value", str(int(value) if float(value).is_integer() else value))
+
+
+def set_stat_if_present(comp: ET.Element, name: str, value) -> None:
+    elem = comp.find(f"./stat[@name='{name}']")
+    if elem is not None:
+        elem.set("value", str(int(value) if float(value).is_integer() else value))
+
+
+def set_param_if_present(comp: ET.Element, name: str, value) -> None:
+    elem = comp.find(f"./param[@name='{name}']")
+    if elem is not None:
+        elem.set("value", str(value))
+
+
+def has_param(comp: ET.Element, name: str) -> bool:
+    return comp.find(f"./param[@name='{name}']") is not None
+
+
+def set_cache_geometry(
+    comp: ET.Element,
+    *,
+    size: int,
+    line_size: int,
+    assoc: int,
+    throughput: int,
+    latency: int,
+    policy: int,
+    config_name: str,
+) -> None:
+    if has_param(comp, "size"):
+        set_param(comp, "size", size)
+        set_param(comp, "block_size", line_size)
+        set_param(comp, "assoc", assoc)
+        set_param(comp, "latency", latency)
+        set_param(comp, "throughput", throughput)
+        return
+
+    if has_param(comp, config_name):
+        block_width = max(line_size // 8, 1)
+        config = f"{size},{block_width},{assoc},1,{throughput},{latency},32,{policy}"
+        set_param(comp, config_name, config)
+        return
+
+    raise KeyError(f"Missing cache geometry params in {comp.attrib.get('id')}")
+
+
+def set_btb_geometry(
+    comp: ET.Element, *, entries: int, assoc: int = 2, throughput: int = 1, latency: int = 3
+) -> None:
+    if has_param(comp, "size"):
+        set_param(comp, "size", entries)
+        set_param(comp, "block_size", 4)
+        set_param(comp, "assoc", assoc)
+        return
+
+    if has_param(comp, "BTB_config"):
+        config = f"{entries},4,{assoc},1,{throughput},{latency}"
+        set_param(comp, "BTB_config", config)
+        return
+
+    raise KeyError(f"Missing BTB geometry params in {comp.attrib.get('id')}")
+
+
+def set_tlb_stats(comp: ET.Element, *, accesses: float, misses: float) -> None:
+    if comp.find("./stat[@name='read_accesses']") is not None:
+        set_stat(comp, "read_accesses", accesses)
+        set_stat(comp, "read_misses", misses)
+    else:
+        set_stat(comp, "total_accesses", accesses)
+        set_stat(comp, "total_misses", misses)
+    set_stat(comp, "conflicts", 0)
 
 
 def parse_clock_mhz(system_cfg: dict) -> int:
@@ -95,7 +174,10 @@ def generate_xml(
     icache = find_component(root, "system.core0.icache")
     dtlb = find_component(root, "system.core0.dtlb")
     dcache = find_component(root, "system.core0.dcache")
-    btb = find_component(root, "system.core0.btargetbuf")
+    # Some McPAT templates name the BTB component "BTB" instead of
+    # "btargetbuf". Accept both to keep the conversion script usable across
+    # our bundled templates and older run directories.
+    btb = find_first_component(root, "system.core0.btargetbuf", "system.core0.BTB")
     l2 = find_component(root, "system.L20")
 
     clock_mhz = parse_clock_mhz(system_cfg)
@@ -270,14 +352,15 @@ def generate_xml(
     set_stat(itlb, "total_misses", 4)
     set_stat(itlb, "conflicts", 0)
 
-    set_param(icache, "size", int(cpu_cfg["icache"]["size"]))
-    set_param(icache, "block_size", line_size)
-    set_param(icache, "assoc", int(cpu_cfg["icache"]["assoc"]))
-    set_param(
-        icache, "latency", int(cpu_cfg["icache"].get("response_latency", 2))
-    )
-    set_param(
-        icache, "throughput", int(cpu_cfg["icache"].get("tag_latency", 2))
+    set_cache_geometry(
+        icache,
+        size=int(cpu_cfg["icache"]["size"]),
+        line_size=line_size,
+        assoc=int(cpu_cfg["icache"]["assoc"]),
+        throughput=int(cpu_cfg["icache"].get("tag_latency", 2)),
+        latency=int(cpu_cfg["icache"].get("response_latency", 2)),
+        policy=0,
+        config_name="icache_config",
     )
     set_stat(
         icache,
@@ -290,15 +373,13 @@ def generate_xml(
         get_stat(stats, "system.cpu.icache.ReadReq.misses::total"),
     )
     set_stat(icache, "conflicts", 0)
-    set_stat(icache, "duty_cycle", 1)
+    set_stat_if_present(icache, "duty_cycle", 1)
 
-    set_stat(
+    set_tlb_stats(
         dtlb,
-        "read_accesses",
-        get_stat(stats, "system.cpu.dcache.demandAccesses::total"),
+        accesses=get_stat(stats, "system.cpu.dcache.demandAccesses::total"),
+        misses=4,
     )
-    set_stat(dtlb, "read_misses", 4)
-    set_stat(dtlb, "conflicts", 0)
 
     d_reads = get_stat(
         stats, "system.cpu.dcache.ReadReq.accesses::total"
@@ -312,25 +393,24 @@ def generate_xml(
     d_write_misses = get_stat(
         stats, "system.cpu.dcache.WriteReq.misses::total"
     )
-    set_param(dcache, "size", int(cpu_cfg["dcache"]["size"]))
-    set_param(dcache, "block_size", line_size)
-    set_param(dcache, "assoc", int(cpu_cfg["dcache"]["assoc"]))
-    set_param(
-        dcache, "latency", int(cpu_cfg["dcache"].get("response_latency", 2))
-    )
-    set_param(
-        dcache, "throughput", int(cpu_cfg["dcache"].get("tag_latency", 2))
+    set_cache_geometry(
+        dcache,
+        size=int(cpu_cfg["dcache"]["size"]),
+        line_size=line_size,
+        assoc=int(cpu_cfg["dcache"]["assoc"]),
+        throughput=int(cpu_cfg["dcache"].get("tag_latency", 2)),
+        latency=int(cpu_cfg["dcache"].get("response_latency", 2)),
+        policy=1,
+        config_name="dcache_config",
     )
     set_stat(dcache, "read_accesses", d_reads)
     set_stat(dcache, "write_accesses", d_writes)
     set_stat(dcache, "read_misses", d_read_misses)
     set_stat(dcache, "write_misses", d_write_misses)
     set_stat(dcache, "conflicts", 0)
-    set_stat(dcache, "duty_cycle", 1)
+    set_stat_if_present(dcache, "duty_cycle", 1)
 
-    set_param(btb, "size", int(bp_cfg.get("BTBEntries", 4096)))
-    set_param(btb, "block_size", 4)
-    set_param(btb, "assoc", 2)
+    set_btb_geometry(btb, entries=int(bp_cfg.get("BTBEntries", 4096)))
     set_stat(
         btb,
         "read_accesses",
@@ -352,18 +432,23 @@ def generate_xml(
         stats, "system.l2.ReadCleanReq.misses::total"
     ) + get_stat(stats, "system.l2.ReadSharedReq.misses::total")
     l2_write_misses = get_stat(stats, "system.l2.ReadExReq.misses::total")
-    set_param(l2, "size", int(system_cfg["l2"]["size"]))
-    set_param(l2, "block_size", line_size)
-    set_param(l2, "assoc", int(system_cfg["l2"]["assoc"]))
-    set_param(l2, "latency", int(system_cfg["l2"].get("response_latency", 20)))
-    set_param(l2, "throughput", int(system_cfg["l2"].get("tag_latency", 20)))
+    set_cache_geometry(
+        l2,
+        size=int(system_cfg["l2"]["size"]),
+        line_size=line_size,
+        assoc=int(system_cfg["l2"]["assoc"]),
+        throughput=int(system_cfg["l2"].get("tag_latency", 20)),
+        latency=int(system_cfg["l2"].get("response_latency", 20)),
+        policy=1,
+        config_name="L2_config",
+    )
     set_param(l2, "clockrate", clock_mhz)
     set_stat(l2, "read_accesses", l2_reads)
     set_stat(l2, "write_accesses", l2_writes)
     set_stat(l2, "read_misses", l2_read_misses)
     set_stat(l2, "write_misses", l2_write_misses)
     set_stat(l2, "conflicts", 0)
-    set_stat(l2, "duty_cycle", 1)
+    set_stat_if_present(l2, "duty_cycle", 1)
 
     ET.indent(tree, space="  ")
     tree.write(output_path, encoding="utf-8", xml_declaration=True)

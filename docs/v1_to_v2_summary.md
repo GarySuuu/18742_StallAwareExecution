@@ -1,16 +1,21 @@
 # V1 To V2 Summary
 
-This file tracks the concrete changes adopted from adaptive `v1` to `v2`,
-the microbenchmark result deltas relative to baseline, and the main tuning
-attempts made along the way.
+This file tracks:
+- the concrete controller changes adopted from adaptive `v1` to `v2`
+- the microbenchmark result deltas relative to baseline
+- the later formal-benchmark tuning work on top of `v2`
+- the main tuning attempts made along the way
 
 Notes:
 - Performance is reported as `simTicks change` relative to baseline.
 - Lower `simTicks` is better, so negative percentages are improvements.
 - Lower `Runtime Dynamic Power` and `Total Runtime Energy` are better.
 - `v1` numbers come from [microbenchmark_suite.md](/mnt/c/Users/garsy/Documents/18742project/gem5/docs/microbenchmark_suite.md).
-- `v2` numbers come from the current repo `runs/adaptive/v2/*/latest` results
-  against the matching `runs/baseline/*/latest` baseline runs.
+- `v2` microbenchmark numbers come from the current repo
+  `runs/adaptive/v2/*/latest` results against the matching
+  `runs/baseline/*/latest` baseline runs.
+- The formal benchmark numbers later in this file come from the GAPBS
+  `g20 / 50M` runs produced during the post-`v2` tuning stage.
 
 Terminology used in this file:
 - `baseline`: gem5 runs with the adaptive controller disabled.
@@ -23,10 +28,14 @@ Terminology used in this file:
 - `legacy aggressive/conservative path`: the original mapping where the four
   detected classes still collapse into only two execution modes:
   serialized/control -> conservative, high-MLP/resource -> aggressive.
-- `serial_bias`: the policy direction adopted for `v2`. In plain terms, it
+- `serial_bias`: the policy direction adopted for `v2`. It
   means the controller is made more willing to treat ambiguous memory-blocked
   windows as serialized-memory-like and to switch earlier into conservative
   mode, because this policy tested best on the key workloads.
+- `formal tuning`: the later tuning stage after the base `v2` mechanism was
+  already working. This stage did not replace the `v2` controller structure;
+  it only retuned conservative-mode strength to make the controller look
+  better on larger GAPBS workloads.
 
 ## 1. Adopted Changes From V1 To V2
 
@@ -61,6 +70,12 @@ So the honest summary is:
 - `v2` kept the same conservative restriction
 - the real `v2` improvement came from policy tuning, not from a harsher
   conservative datapath
+
+Why this matters:
+- This means the `v1 -> v2` story is mainly about better control policy.
+- The mechanism did not suddenly gain a new datapath throttle.
+- Instead, the same conservative mode became more effective because the
+  controller entered it at better times.
 
 2. Adopted the `serial_bias` policy direction
 
@@ -130,8 +145,23 @@ This is why the policy is called `serial_bias`:
 - it biases ambiguous memory-blocked behavior toward the `Serialized` class
 - and because `Serialized` maps to `Conservative`, it increases conservative-mode usage
 
+The practical consequence is:
+- `v1` and `v2` share the same conservative hardware limits
+- but `v2` spends more of the run in the parts of the state space where
+  those limits actually save energy without hurting performance too much
+
 6. Kept the main execution mechanism on the legacy 2-mode path instead of
 adopting more complex per-class execution profiles.
+
+Why this was the adopted choice:
+- We implemented and validated per-class execution profiles later, but the
+  best supported mainline story remained the legacy 2-mode path.
+- The 2-mode path is simpler to explain:
+  - classify the window
+  - collapse the class into aggressive vs conservative
+  - use conservative only when wide execution is judged to be wasteful
+- This also keeps the `v1 -> v2` comparison fairer, because the execution
+  mechanism itself remains structurally similar.
 
 7. Standardized the `v2` experiment flow around the current adaptive scripts.
    This is an engineering change rather than a controller-logic change, but it
@@ -159,17 +189,111 @@ Short reading:
 - `hash_probe_chain`, `stream_cluster_reduce`, and `compute_queue_pressure`
   still show little or no benefit.
 
-## 3. Attempts From V1 To V2
+## 3. Post-V2 Formal Benchmark Tuning
+
+Important scope note:
+- The section above describes the adopted `v1 -> v2` controller change.
+- The numbers below are a later tuning pass on top of `v2`, aimed at making
+  the controller look better on larger, more formal graph workloads.
+- These are not part of the original `v1 -> v2` claim.
+
+### 3.1 Why later formal tuning was needed
+
+When the base `v2` policy was moved from microbenchmarks to larger GAPBS
+workloads, the default conservative mode was still too harsh for graph codes.
+The main symptom was:
+- the controller entered conservative mode often enough to save power
+- but the default `fetch=2, inflight=96` setting over-throttled graph
+  throughput
+- so the first formal GAPBS runs showed large performance losses
+
+The later tuning goal was therefore not to redesign the controller, but to
+make conservative mode less punitive while keeping most of the energy savings.
+
+### 3.2 What was changed in the formal tuning stage
+
+The best-looking formal results came from keeping the same `v2` controller
+logic and only relaxing conservative mode:
+
+| Parameter | Base adopted `v2` | Formal-tuned value | Why |
+|---|---:|---:|---|
+| `adaptiveWindowCycles` | `5000` | `2500` | shorter windows make the controller react sooner to phase changes |
+| `adaptiveConservativeFetchWidth` | `2` | `4` | lets graph workloads keep more front-end throughput while still narrowing the machine |
+| `adaptiveConservativeInflightCap` | `96` | `128` | avoids over-throttling irregular graph execution when the controller enters conservative mode |
+
+The interpretation is:
+- `v2` already had the right policy direction
+- but the default conservative mode was too strong for GAPBS
+- a milder conservative mode preserved most of the power benefit while pulling
+  performance loss back into the low single-digit range
+
+### 3.3 Final formal GAPBS results
+
+These are the current best formal results.
+They are from `GAPBS`, not from `PolyBench`.
+
+Configuration:
+- graph scale: `g20`
+- instruction cap: `50M`
+- policy:
+  - `adaptiveWindowCycles = 2500`
+  - `adaptiveConservativeFetchWidth = 4`
+  - `adaptiveConservativeInflightCap = 128`
+
+All values below are relative to baseline.
+
+| GAPBS benchmark | simTicks | IPC | Runtime Dynamic Power | Total Runtime Energy |
+|---|---:|---:|---:|---:|
+| `tc` | `-3.23%` | `+3.34%` | `-18.04%` | `-20.12%` |
+| `sssp` | `+2.07%` | `-2.03%` | `-10.82%` | `-8.49%` |
+| `bfs` | `+2.84%` | `-2.76%` | `-14.09%` | `-11.06%` |
+| `bc` | `+2.87%` | `-2.79%` | `-12.74%` | `-9.70%` |
+| `pr` | `+2.57%` | `-2.50%` | `-11.96%` | `-9.21%` |
+| `cc` | `+2.46%` | `-2.40%` | `-9.27%` | `-6.63%` |
+
+Short reading:
+- `tc` is the strongest case because it improves both performance and energy.
+- `bfs`, `bc`, `pr`, `sssp`, and `cc` all show the desired tradeoff:
+  small performance loss, but much larger power / energy savings.
+- For most of these workloads, power reduction is roughly 4x to 5x the
+  performance loss.
+
+### 3.4 What happened on PolyBench
+
+The strong formal results did **not** come from PolyBench.
+
+We screened a set of PolyBench workloads such as:
+- `durbin`
+- `floyd-warshall`
+- `seidel-2d`
+- `adi`
+- `fdtd-2d`
+- `nussinov`
+
+What we observed:
+- many PolyBench kernels stayed effectively in aggressive mode
+- several showed almost no performance separation at all
+- some showed tiny energy changes, but nothing as strong or as clean as GAPBS
+
+So the current honest story is:
+- microbenchmark gains established the `v1 -> v2` mechanism
+- GAPBS provided the strongest larger-workload formal results
+- PolyBench did not become the main source of reportable wins
+## 4. Attempts From V1 To V2 And After
 
 - `[x]` Shift to the `serial_bias` policy story instead of a broad many-knob story.
 - `[x]` Reduce switching inertia by moving to `hysteresis=1` and `minModeWindows=1`.
 - `[x]` Retune classification thresholds to `mem_block_ratio=0.12` and `outstanding_miss=12`.
 - `[x]` Keep the adopted `v2` mainline on the legacy aggressive/conservative path.
 - `[x]` Standardize the `v2` experiment flow through the current adaptive scripts.
+- `[x]` After `v2`, retune formal GAPBS runs with a milder conservative mode:
+  `window=2500`, `fetch=4`, `inflight=128`.
 
 - `[ ]` Make per-class execution profiles the default mainline (`adaptiveUseClassProfiles=True`).
 - `[ ]` Adopt the `High-MLP` inflight guard as the main reported mechanism.
 - `[ ]` Adopt tighter `ResourceProfile` settings.
 - `[ ]` Adopt tighter `SerializedProfile` settings.
 - `[ ]` Adopt the experimental resource dual-tier / split-resource path.
-- `[ ]` Replace the current 5000-cycle mainline with the shorter 2500-cycle window.
+- `[ ]` Replace the current reported `v2` mainline with the later formal-tuned
+  `2500 / fetch=4 / inflight=128` configuration in the historical `v1 -> v2`
+  story.
