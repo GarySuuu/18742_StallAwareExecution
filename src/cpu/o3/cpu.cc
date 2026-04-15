@@ -199,7 +199,12 @@ CPU::CPU(const BaseO3CPUParams &params)
     adaptiveCurrentMode = AdaptiveMode::Aggressive;
 
     if (adaptiveEnable) {
-        adaptiveWindowLog = simout.create("adaptive_window_log.csv");
+        std::string logName = "adaptive_window_log";
+        if (params.cpu_id > 0) {
+            logName += "_cpu" + std::to_string(params.cpu_id);
+        }
+        logName += ".csv";
+        adaptiveWindowLog = simout.create(logName);
         auto &os = *adaptiveWindowLog->stream();
         os << "window_id,cycles,class,target_mode,applied_mode,"
            << "resource_profile_level,switched,"

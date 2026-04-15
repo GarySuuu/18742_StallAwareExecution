@@ -5,7 +5,11 @@ SUITE_DIRS := \
 	hash_probe_chain \
 	phase_scan_mix \
 	stream_cluster_reduce \
-	compute_queue_pressure
+	compute_queue_pressure \
+	fetch_bandwidth_stress \
+	iq_pressure_stress \
+	lsq_pressure_stress \
+	rename_dispatch_stress
 EXTERNAL_SUITES := \
 	polybench-c \
 	gapbs

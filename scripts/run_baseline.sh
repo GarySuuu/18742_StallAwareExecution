@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VENV_DIR="${ROOT_DIR}/../.venv-gem5"
+GEM5_BIN="${GEM5_BIN:-${ROOT_DIR}/build/ARM/gem5.opt}"
 OUTDIR=""
 MAXINSTS="50000000"
 WORKLOAD_PATH="${ROOT_DIR}/tests/test-progs/hello/bin/arm/linux/hello"
@@ -58,8 +59,8 @@ if [[ $# -ge 1 ]]; then
   fi
 fi
 
-if [[ ! -f "${ROOT_DIR}/build/ARM/gem5.opt" ]]; then
-  echo "ERROR: ${ROOT_DIR}/build/ARM/gem5.opt not found."
+if [[ ! -f "${GEM5_BIN}" ]]; then
+  echo "ERROR: gem5 binary not found: ${GEM5_BIN}"
   echo "Build first: scons build/ARM/gem5.opt -j2"
   exit 1
 fi
@@ -109,10 +110,10 @@ fi
 mkdir -p "${OUTDIR}"
 find "${OUTDIR}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 
-chmod +x "${ROOT_DIR}/build/ARM/gem5.opt"
+chmod +x "${GEM5_BIN}"
 
 GEM5_CMD=(
-  "${ROOT_DIR}/build/ARM/gem5.opt"
+  "${GEM5_BIN}"
   "--outdir=${OUTDIR}"
   "${ROOT_DIR}/configs/deprecated/example/se.py"
   -n 1
