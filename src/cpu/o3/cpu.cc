@@ -154,6 +154,10 @@ CPU::CPU(const BaseO3CPUParams &params)
     adaptiveSwitchHysteresis = params.adaptiveSwitchHysteresis;
     adaptiveMinModeWindows = params.adaptiveMinModeWindows;
     adaptiveAggressiveFetch = params.fetchWidth;
+    adaptiveLightConsFetch = params.adaptiveLightConsFetchWidth;
+    adaptiveLightConsInflightCap = params.adaptiveLightConsInflightCap;
+    adaptiveLightConsIQCap = params.adaptiveLightConsIQCap;
+    adaptiveLightConsLSQCap = params.adaptiveLightConsLSQCap;
     adaptiveConservativeFetch = params.adaptiveConservativeFetchWidth;
     adaptiveConservativeInflightCap = params.adaptiveConservativeInflightCap;
     adaptiveConservativeIQCap = params.adaptiveConservativeIQCap;
@@ -186,6 +190,11 @@ CPU::CPU(const BaseO3CPUParams &params)
     adaptiveResourceTightRenameWidth = params.adaptiveResourceTightRenameWidth;
     adaptiveResourceTightDispatchWidth =
         params.adaptiveResourceTightDispatchWidth;
+    adaptiveSerializedTightSquashThres =
+        params.adaptiveSerializedTightSquashThres;
+    adaptiveSerializedTightFetch = params.adaptiveSerializedTightFetchWidth;
+    adaptiveSerializedTightInflightCap =
+        params.adaptiveSerializedTightInflightCap;
     adaptiveMemBlockRatioThres = params.adaptiveMemBlockRatioThres;
     adaptiveOutstandingMissThres = params.adaptiveOutstandingMissThres;
     adaptiveHighMLPMaxInflightProxy = params.adaptiveHighMLPMaxInflightProxy;
@@ -193,6 +202,7 @@ CPU::CPU(const BaseO3CPUParams &params)
     adaptiveSquashRatioThres = params.adaptiveSquashRatioThres;
     adaptiveIQSaturationRatioThres = params.adaptiveIQSaturationRatioThres;
     adaptiveCommitActivityRatioThres = params.adaptiveCommitActivityRatioThres;
+    adaptiveEmaAlpha = params.adaptiveEmaAlpha;
 
     adaptiveCurrentClass = AdaptiveClass::ResourceContentionDominated;
     adaptivePendingClass = adaptiveCurrentClass;
@@ -520,6 +530,12 @@ CPU::adaptiveEffectiveInflightCap() const
                 adaptiveResourceTightInflightCap);
         }
         return adaptiveInflightCapFromParam(adaptiveResourceInflightCap);
+      case AdaptiveMode::LightConservative:
+        if (adaptiveCurrentSerializedTight) {
+            return adaptiveInflightCapFromParam(
+                adaptiveSerializedTightInflightCap);
+        }
+        return adaptiveInflightCapFromParam(adaptiveLightConsInflightCap);
       case AdaptiveMode::Conservative:
         return adaptiveInflightCapFromParam(adaptiveConservativeInflightCap);
       case AdaptiveMode::Aggressive:
@@ -543,6 +559,8 @@ CPU::adaptiveEffectiveRenameWidthLimit() const
             return adaptiveResourceTightRenameWidth;
         }
         return adaptiveResourceRenameWidth;
+      case AdaptiveMode::LightConservative:
+        return 0;  /* light: no rename width limit */
       case AdaptiveMode::Conservative:
         return adaptiveConservativeRenameWidth;
       case AdaptiveMode::Aggressive:
@@ -566,6 +584,8 @@ CPU::adaptiveEffectiveDispatchWidthLimit() const
             return adaptiveResourceTightDispatchWidth;
         }
         return adaptiveResourceDispatchWidth;
+      case AdaptiveMode::LightConservative:
+        return 0;  /* light: no dispatch width limit */
       case AdaptiveMode::Conservative:
         return adaptiveConservativeDispatchWidth;
       case AdaptiveMode::Aggressive:
@@ -593,6 +613,11 @@ CPU::adaptiveFetchWidth() const
             return adaptiveFetchWidthFromParam(adaptiveResourceTightFetchWidth);
         }
         return adaptiveFetchWidthFromParam(adaptiveResourceFetchWidth);
+      case AdaptiveMode::LightConservative:
+        if (adaptiveCurrentSerializedTight) {
+            return adaptiveFetchWidthFromParam(adaptiveSerializedTightFetch);
+        }
+        return adaptiveFetchWidthFromParam(adaptiveLightConsFetch);
       case AdaptiveMode::Conservative:
         return adaptiveFetchWidthFromParam(adaptiveConservativeFetch);
       case AdaptiveMode::Aggressive:
@@ -641,15 +666,28 @@ CPU::adaptiveShouldThrottleFetch()
     if (rob_occupancy >= inflight_cap) {
         return true;
     }
-    if (adaptiveConservativeIQCap > 0) {
+
+    /* Select IQ/LSQ cap based on current mode */
+    unsigned iq_cap = 0;
+    unsigned lsq_cap = 0;
+    if (adaptiveCurrentMode == AdaptiveMode::LightConservative) {
+        iq_cap = adaptiveLightConsIQCap;
+        lsq_cap = adaptiveLightConsLSQCap;
+    } else if (adaptiveCurrentMode == AdaptiveMode::Conservative) {
+        iq_cap = adaptiveConservativeIQCap;
+        lsq_cap = adaptiveConservativeLSQCap;
+    }
+    /* Aggressive mode: no IQ/LSQ cap */
+
+    if (iq_cap > 0) {
         const unsigned iq_occupancy = iew.instQueue.getCount(0);
-        if (iq_occupancy >= adaptiveConservativeIQCap) {
+        if (iq_occupancy >= iq_cap) {
             return true;
         }
     }
-    if (adaptiveConservativeLSQCap > 0) {
+    if (lsq_cap > 0) {
         const unsigned lsq_occupancy = iew.ldstQueue.getCount(0);
-        if (lsq_occupancy >= adaptiveConservativeLSQCap) {
+        if (lsq_occupancy >= lsq_cap) {
             return true;
         }
     }
@@ -729,9 +767,9 @@ CPU::AdaptiveClass
 CPU::adaptiveClassifyWindow(const AdaptiveWindowStats &window) const
 {
     const double cycles = std::max<uint64_t>(window.cycles, 1);
-    const double mem_block_ratio = safeRatio(
+    const double mem_block_ratio_raw = safeRatio(
         window.commitBlockedMemCycles, window.cycles);
-    const double avg_outstanding_misses_proxy =
+    const double avg_outstanding_misses_raw =
         static_cast<double>(window.outstandingMissSamples) / cycles;
     const double branch_recovery_ratio = safeRatio(
         window.branchRecoveryCycles, window.cycles);
@@ -743,6 +781,12 @@ CPU::adaptiveClassifyWindow(const AdaptiveWindowStats &window) const
         window.committedInsts, std::max<uint64_t>(window.fetchedInsts, 1));
     const double avg_inflight_proxy =
         static_cast<double>(window.inflightInstSamples) / cycles;
+
+    /* V3: use EMA-smoothed values for boundary-sensitive signals */
+    const double mem_block_ratio = (adaptiveEmaAlpha > 0.0)
+        ? adaptiveEmaMemBlockRatio : mem_block_ratio_raw;
+    const double avg_outstanding_misses_proxy = (adaptiveEmaAlpha > 0.0)
+        ? adaptiveEmaOutstandingMisses : avg_outstanding_misses_raw;
 
     if (mem_block_ratio >= adaptiveMemBlockRatioThres) {
         if (avg_outstanding_misses_proxy >= adaptiveOutstandingMissThres) {
@@ -779,13 +823,14 @@ CPU::adaptiveMapClassToMode(AdaptiveClass cls) const
     }
 
     switch (cls) {
-      case AdaptiveClass::SerializedMemoryDominated:
       case AdaptiveClass::ControlDominated:
-        return AdaptiveMode::Conservative;
+        return AdaptiveMode::Conservative;       /* deep throttle */
+      case AdaptiveClass::SerializedMemoryDominated:
+        return AdaptiveMode::LightConservative;   /* moderate throttle */
       case AdaptiveClass::HighMLPMemoryDominated:
       case AdaptiveClass::ResourceContentionDominated:
       default:
-        return AdaptiveMode::Aggressive;
+        return AdaptiveMode::Aggressive;          /* no throttle */
     }
 }
 
@@ -836,10 +881,13 @@ CPU::adaptiveShouldUseTightResourceProfile(
 std::string
 CPU::adaptiveResourceProfileLevel() const
 {
-    if (adaptiveCurrentMode != AdaptiveMode::ResourceProfile) {
-        return "na";
+    if (adaptiveCurrentMode == AdaptiveMode::ResourceProfile) {
+        return adaptiveCurrentResourceTight ? "tight" : "base";
     }
-    return adaptiveCurrentResourceTight ? "tight" : "base";
+    if (adaptiveCurrentMode == AdaptiveMode::LightConservative) {
+        return adaptiveCurrentSerializedTight ? "ser-tight" : "na";
+    }
+    return "na";
 }
 
 std::string
@@ -870,6 +918,8 @@ CPU::adaptiveModeName(AdaptiveMode mode) const
         return "control-profile";
       case AdaptiveMode::ResourceProfile:
         return "resource-profile";
+      case AdaptiveMode::LightConservative:
+        return "light-conservative";
       case AdaptiveMode::Conservative:
         return "conservative";
       case AdaptiveMode::Aggressive:
@@ -966,12 +1016,52 @@ CPU::adaptiveAdvanceWindow()
 
     adaptiveWindowId++;
     const auto window = adaptiveWindowStats;
+
+    /* V3: update EMA-smoothed signals before classification.
+     * Only update when in Aggressive mode to avoid classification drift
+     * (conservative params change pipeline behavior -> change signals ->
+     *  change classification -> feedback loop). When in conservative/light
+     *  modes, keep the last aggressive-mode EMA values. */
+    {
+        const double cycles = std::max<uint64_t>(window.cycles, 1);
+        const double raw_mem = safeRatio(
+            window.commitBlockedMemCycles, window.cycles);
+        const double raw_miss =
+            static_cast<double>(window.outstandingMissSamples) / cycles;
+        const double a = adaptiveEmaAlpha;
+        const bool should_update =
+            (adaptiveCurrentMode == AdaptiveMode::Aggressive) ||
+            (adaptiveWindowId <= 1);
+        if (adaptiveWindowId <= 1) {
+            adaptiveEmaMemBlockRatio = raw_mem;
+            adaptiveEmaOutstandingMisses = raw_miss;
+        } else if (should_update) {
+            adaptiveEmaMemBlockRatio =
+                a * raw_mem + (1.0 - a) * adaptiveEmaMemBlockRatio;
+            adaptiveEmaOutstandingMisses =
+                a * raw_miss + (1.0 - a) * adaptiveEmaOutstandingMisses;
+        }
+        /* else: keep previous EMA values (from last aggressive window) */
+    }
+
     AdaptiveClass cls = adaptiveClassifyWindow(window);
     AdaptiveMode target_mode = adaptiveMapClassToMode(cls);
     const auto prev_mode = adaptiveCurrentMode;
     adaptiveMaybeSwitch(cls, target_mode);
     adaptiveCurrentResourceTight =
         adaptiveShouldUseTightResourceProfile(window, cls);
+
+    /* Serialized-tight sub-level: high-squash Serialized windows */
+    adaptiveCurrentSerializedTight = false;
+    if (cls == AdaptiveClass::SerializedMemoryDominated) {
+        const double squash_ratio = safeRatio(
+            window.squashedInsts, std::max<uint64_t>(window.fetchedInsts, 1));
+        if (adaptiveSerializedTightSquashThres > 0.0 &&
+            squash_ratio >= adaptiveSerializedTightSquashThres) {
+            adaptiveCurrentSerializedTight = true;
+        }
+    }
+
     adaptiveEmitWindowLog(window, cls, target_mode, prev_mode != adaptiveCurrentMode);
 
     adaptiveWindowStats = AdaptiveWindowStats{};

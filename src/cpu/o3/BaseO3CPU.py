@@ -205,26 +205,38 @@ class BaseO3CPU(BaseCPU):
     adaptiveMinModeWindows = Param.Unsigned(
         2, "Minimum number of windows to hold current mode"
     )
+    # Light conservative (sweet spot): minimal throttle, may improve IPC
+    adaptiveLightConsFetchWidth = Param.Unsigned(
+        6, "Fetch width in light conservative mode (sweet spot)"
+    )
+    adaptiveLightConsInflightCap = Param.Unsigned(
+        56, "Inflight cap in light conservative mode (sweet spot)"
+    )
+    adaptiveLightConsIQCap = Param.Unsigned(
+        26, "IQ cap in light conservative mode (sweet spot, 0 disables)"
+    )
+    adaptiveLightConsLSQCap = Param.Unsigned(
+        28, "LSQ cap in light conservative mode (sweet spot, 0 disables)"
+    )
+
+    # Deep conservative: stronger throttle for stall-heavy phases
     adaptiveConservativeFetchWidth = Param.Unsigned(
-        2, "Effective fetch width in conservative mode"
+        4, "Fetch width in (deep) conservative mode"
     )
     adaptiveConservativeInflightCap = Param.Unsigned(
-        96, "Soft in-flight cap (ROB occupancy proxy) in conservative mode"
+        48, "Inflight cap in (deep) conservative mode"
     )
     adaptiveConservativeIQCap = Param.Unsigned(
-        0, "Optional IQ occupancy cap in conservative mode (0 disables it)"
+        20, "IQ cap in (deep) conservative mode (0 disables)"
     )
     adaptiveConservativeLSQCap = Param.Unsigned(
-        0,
-        "Optional LSQ occupancy proxy cap in conservative mode (0 disables it)",
+        16, "LSQ cap in (deep) conservative mode (0 disables)"
     )
     adaptiveConservativeRenameWidth = Param.Unsigned(
-        0,
-        "Optional effective rename width in conservative mode (0 keeps baseline width)",
+        0, "Rename width in conservative mode (0 keeps baseline)"
     )
     adaptiveConservativeDispatchWidth = Param.Unsigned(
-        0,
-        "Optional effective dispatch width in conservative mode (0 keeps baseline width)",
+        0, "Dispatch width in conservative mode (0 keeps baseline)"
     )
     adaptiveUseClassProfiles = Param.Bool(
         False,
@@ -305,8 +317,21 @@ class BaseO3CPU(BaseCPU):
         "Dispatch width cap for tight Resource sub-profile (0 keeps baseline width)",
     )
 
+    # Serialized-tight sub-level: stronger throttle for high-squash Serialized windows
+    adaptiveSerializedTightSquashThres = Param.Float(
+        0.30,
+        "Squash ratio threshold for tight serialized sub-level "
+        "(0 disables this sub-level)",
+    )
+    adaptiveSerializedTightFetchWidth = Param.Unsigned(
+        4, "Fetch width for tight serialized (high squash) windows"
+    )
+    adaptiveSerializedTightInflightCap = Param.Unsigned(
+        128, "Inflight cap for tight serialized windows"
+    )
+
     adaptiveMemBlockRatioThres = Param.Float(
-        0.15, "Threshold for memory-blocked ratio per window"
+        0.08, "Threshold for memory-blocked ratio per window (V3: lowered from 0.15)"
     )
     adaptiveOutstandingMissThres = Param.Float(
         8.0, "Threshold for avg outstanding misses proxy per window"
@@ -327,4 +352,10 @@ class BaseO3CPU(BaseCPU):
     )
     adaptiveCommitActivityRatioThres = Param.Float(
         0.20, "Threshold for commit activity ratio per window"
+    )
+
+    adaptiveEmaAlpha = Param.Float(
+        0.3,
+        "V3 EMA smoothing factor for boundary-sensitive signals "
+        "(outstanding_misses, mem_block_ratio). 0 disables EMA.",
     )

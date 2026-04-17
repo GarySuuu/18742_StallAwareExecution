@@ -123,7 +123,8 @@ class CPU : public BaseCPU
     enum class AdaptiveMode
     {
         Aggressive,
-        Conservative,
+        LightConservative,  /* V3: sweet spot throttle */
+        Conservative,       /* V2: stronger throttle */
         SerializedProfile,
         HighMLPProfile,
         ControlProfile,
@@ -530,10 +531,17 @@ class CPU : public BaseCPU
     unsigned adaptiveSwitchHysteresis = 2;
     unsigned adaptiveMinModeWindows = 2;
     unsigned adaptiveAggressiveFetch = 8;
-    unsigned adaptiveConservativeFetch = 2;
-    unsigned adaptiveConservativeInflightCap = 96;
-    unsigned adaptiveConservativeIQCap = 0;
-    unsigned adaptiveConservativeLSQCap = 0;
+    /* Light conservative (sweet spot) */
+    unsigned adaptiveLightConsFetch = 6;
+    unsigned adaptiveLightConsInflightCap = 56;
+    unsigned adaptiveLightConsIQCap = 26;
+    unsigned adaptiveLightConsLSQCap = 28;
+
+    /* Deep conservative */
+    unsigned adaptiveConservativeFetch = 4;
+    unsigned adaptiveConservativeInflightCap = 48;
+    unsigned adaptiveConservativeIQCap = 20;
+    unsigned adaptiveConservativeLSQCap = 16;
     unsigned adaptiveConservativeRenameWidth = 0;
     unsigned adaptiveConservativeDispatchWidth = 0;
     bool adaptiveUseClassProfiles = false;
@@ -574,8 +582,17 @@ class CPU : public BaseCPU
     AdaptiveClass adaptivePendingClass = AdaptiveClass::ResourceContentionDominated;
     AdaptiveMode adaptiveCurrentMode = AdaptiveMode::Aggressive;
     bool adaptiveCurrentResourceTight = false;
+    double adaptiveSerializedTightSquashThres = 0.30;
+    unsigned adaptiveSerializedTightFetch = 4;
+    unsigned adaptiveSerializedTightInflightCap = 128;
+    bool adaptiveCurrentSerializedTight = false;
     AdaptiveWindowStats adaptiveWindowStats;
     OutputStream *adaptiveWindowLog = nullptr;
+
+    /** V3: EMA-smoothed signals for stable classification */
+    double adaptiveEmaOutstandingMisses = 0.0;
+    double adaptiveEmaMemBlockRatio = 0.0;
+    double adaptiveEmaAlpha = 0.3;
 
     void adaptiveRecordCycleSignals();
     AdaptiveClass adaptiveClassifyWindow(
