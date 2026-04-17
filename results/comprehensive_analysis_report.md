@@ -1,19 +1,67 @@
 # Adaptive O3 CPU -- 综合分析报告
 
-> 本报告覆盖全部6个Task的执行结果与深度分析。  
+> 本报告覆盖全部6个Task的执行结果与深度分析。
 > 数据来源：261个gem5仿真实验，存储于 `results/all_experiments.csv`。
 
 ---
 
 ## 目录
 
+0. [项目概述、动机与有效性](#项目概述动机与有效性)
 1. [Task 1: 参数分类 (Frontend vs Backend)](#task-1-参数分类)
 2. [Task 2: 参数扫描图表与数据](#task-2-参数扫描图表与数据)
-3. [Task 3: 逐窗口模式分析](#task-3-逐窗口模式分析)
-4. [Task 4: 多核转换与实验](#task-4-多核转换与实验)
-5. [Task 5: 设计探索](#task-5-设计探索)
+3. [补充分析：Per-cycle 机制分析](#补充分析per-cycle-机制分析)
+4. [Task 3: 逐窗口模式分析](#task-3-逐窗口模式分析)
+5. [Task 4: 多核转换与实验](#task-4-多核转换与实验)
+6. [Task 5: 设计探索](#task-5-设计探索)
 
 ---
+
+## 项目概述、动机与有效性
+
+### 这个project在做什么
+
+这个项目不是重新设计一个新的CPU，而是**在gem5的 `DerivO3CPU` 上加一层运行时控制器**。这层控制器做三件事：
+
+1. **按周期采样信号**：每个cycle记录ROB/IQ/LSQ占用、是否发生IQ饱和、是否处于branch recovery、是否出现commit被memory backpressure卡住等信号。
+2. **按窗口做分类**：每 `2500` 或 `5000` 个cycle，把这段窗口归类为 `Serialized`、`High-MLP`、`Control`、`Resource` 四类之一。
+3. **按分类切换执行强度**：把CPU切到 `aggressive` 或 `conservative`，并动态修改 fetch width、inflight cap，以及可选的 IQ/LSQ/rename/dispatch 限制。
+
+换句话说，这个project做的是一个**按窗口调节投机强度和前端压力的自适应 O3 控制器**。
+
+### 为什么要做这个
+
+这个project背后的核心判断很直接：
+
+- O3 CPU 的宽前端和深投机在很多窗口里确实有价值，因为这些窗口有足够的 ILP/MLP，可以把宽流水线吃满。
+- 但也有很多窗口本身就没有足够的并行性，比如串行 memory chain、分支恢复期、或者已经出现明显后端拥塞的窗口。
+- 在这些窗口里继续用 8-wide aggressive 前端，往往只会带来更多**无效取指、无效 rename/dispatch、ROB/IQ/LSQ 挤占、额外 squash，以及更高动态功耗**。
+
+所以项目的目标不是“永远降频降宽”，而是：
+
+> **只在宽执行明显浪费的时候收敛前端和inflight压力；在真正有并行度的时候保持激进。**
+
+### 为什么这么做会有效
+
+这个项目有效，根本原因是它抓住了 O3 CPU 里一个常见但容易被忽略的事实：
+
+> **更多的投机指令，不等于更多的有效完成指令。**
+
+当窗口本身并行度不够时，额外取进来的指令常常会造成三类问题：
+
+1. **后端拥塞**：IQ、LSQ、ROB 被大量暂时没法前进的指令占住，反过来把 decode/rename 顶住。
+2. **投机浪费**：这些指令很多最后会被 squash，但已经消耗了 fetch/rename/dispatch/execute 的动态能量。
+3. **内存次序与恢复代价**：load/store 窗口过大时，memory order violation 和 flush 变多，反而拖慢真实进度。
+
+本报告后面的实验给了三个层面的证据：
+
+- **单参数 sweep 证据**：适度限制 `fw` / `iqcap` / `lsqcap` / `robcap`，很多时候不只省电，还能让 IPC 高于 baseline。
+- **逐窗口证据**：`phase_scan_mix` 这类phase变化明显的workload，adaptive可以把 throttle 放到真正低效的窗口里，做到接近零性能代价但明显降功耗。
+- **反例验证**：像 `compute_queue_pressure` 这类真正能吃满机器的窗口，分类器大部分时间保持 aggressive，因此性能基本不变。
+
+这也是这个project最重要的结论：
+
+> **有效的点不在于“把CPU变慢”，而在于“减少无效投机，让每个cycle里进入流水线的指令更接近真实有用的那部分”。**
 
 ## Task 1: 参数分类
 
@@ -114,7 +162,7 @@ Step 3: iq_saturation >= 0.10 AND commit_activity >= 0.20 ?
 
 > **核心发现**：V2相对于V1的改善主要来自4个策略参数的调整，而不是增加新的datapath throttle。
 > 这意味着分类器的"灵敏度"和"偏向性"是影响能耗-性能权衡的最关键杠杆。后端参数（rename/dispatch width等）在V2中大部分保持默认（=0，即禁用），说明它们的边际贡献有限。
-> 
+>
 > 唯一在V2中实际生效的后端参数是：`FetchWidth=2` 和 `InflightCap=96`。
 
 ---
@@ -535,6 +583,154 @@ Baseline配置下f()已饱和但g()很大。**Sweet spot = f()还没有明显下
 
 ---
 
+## 补充分析：Per-cycle 机制分析
+
+这一节不再按“每个窗口是什么分类”来看，而是直接回答一个更底层的问题：
+
+> **adaptive 机制到底在每个 cycle 改变了什么，为什么这些改变会转化成 IPC/功耗收益？**
+
+### 1. 控制器在每个cycle真正做了什么
+
+从 `src/cpu/o3/cpu.cc` 和 `src/cpu/o3/fetch.cc` 的实现看，运行时路径非常明确：
+
+1. **每个cycle采样**
+   - `adaptiveRecordCycleSignals()` 记录 ROB、IQ、LSQ 占用
+   - 记录 `iqSaturationCycles`、`branchRecoveryCycles`
+   - 用 `head_not_ready && mem_backpressured` 累积 `commitBlockedMemCycles`
+2. **每个cycle决定是否允许fetch继续推进**
+   - `adaptiveShouldThrottleFetch()` 会检查
+   - `rob_occupancy >= inflight_cap`
+   - `iq_occupancy >= iq_cap`
+   - `lsq_occupancy >= lsq_cap`
+   - 只要任一条件满足，当cycle直接停止fetch
+3. **每个cycle限制前端灌入速度**
+   - `adaptiveFetchWidth()` 返回当前模式下的有效 fetch width
+   - `Fetch::fetch()` 用它替代原始 `fetchWidth`
+4. **每个cycle可选地限制rename / dispatch**
+   - `adaptiveRenameWidth()` 和 `adaptiveDispatchWidth()` 会对带宽做上限裁剪
+5. **每个窗口边界更新模式**
+   - `adaptiveAdvanceWindow()` 在窗口结束时计算比率、分类、做模式切换、写 `adaptive_window_log.csv`
+
+所以它不是一个离线分析器，而是一个**真正插在 fetch 入口和窗口边界上的在线控制器**。
+
+### 2. 从 per-cycle 角度看，性能为什么会变好
+
+Task 2 的 dense sweep 已经给了最关键的一组证据。下面用 `balanced_pipeline_stress` 的 baseline 和几个 sweet spot 配置做对比：
+
+| 配置 | IPC | fetch / cycle | issue / cycle | commit / cycle | IQFullEvents | memOrderViolation | ROB writes |
+|------|-----|---------------|---------------|----------------|--------------|-------------------|------------|
+| baseline | 2.908 | 3.89 | 3.12 | 3.17 | 2.754M | 9457 | 122.3M |
+| fw=6 | 3.005 | 3.56 | 3.18 | 3.15 | 0.406M | 4822 | 112.2M |
+| iqcap=26 | 3.062 | 3.47 | 3.18 | 3.15 | 0 | 286 | 105.5M |
+| lsqcap=28 | 3.054 | 3.43 | 3.17 | 3.14 | ~0 | 399 | 105.9M |
+| robcap=56 | 3.035 | 3.46 | 3.15 | 3.13 | 0 | 264 | 106.0M |
+
+这个表很说明问题：
+
+- `fetch / cycle` 明显下降了，但 `issue / cycle` 和 `commit / cycle` 没有同步下降，反而略有提升或基本持平。
+- 说明被削掉的主要不是“有用工作”，而是**后端本来就消化不掉的那部分前端压力**。
+- 同时 `IQFullEvents`、`memOrderViolation`、`ROB writes` 都大幅下降，说明 pipeline 里少了很多拥塞和无效投机。
+
+也就是说，adaptive 的价值不是让 CPU “少干活”，而是让它**少做那些本来就不会转化为 commit 的活**。
+
+### 3. baseline 每个cycle的问题是什么
+
+以 baseline 为例，前端平均每cycle取 `3.89` 条，但 issue 只有 `3.12`，commit 只有 `3.17`。这意味着 baseline 的每cycle行为很像下面这种模式：
+
+1. 前端尽量多灌指令进来
+2. 后端某一处先满掉，最常见的是 IQ / LSQ / ROB 压力积累
+3. decode / rename 被迫停住
+4. 一部分已经进来的指令最后被 squash 或 flush
+5. 过一段时间后端 drain 一些，再重新灌入
+
+这就是报告前面多次提到的 **burst-stall 振荡**。从 per-cycle 角度看，它的问题不只是“有些周期停顿”，而是：
+
+- 停顿前已经灌入了一批不必要的指令
+- 这些指令已经消耗了多个流水级的动态能量
+- 还把真正有价值的指令排在后面
+
+所以 baseline 的问题本质上是**每cycle进入流水线的指令质量不高**。
+
+### 4. sweet spot 为什么有效
+
+#### 4.1 `fw=6` 的作用：把前端流量调到后端能持续消化的范围
+
+`fw=6` 相比 baseline：
+
+- `fetch / cycle` 从 `3.89` 降到 `3.56`
+- `issue / cycle` 从 `3.12` 升到 `3.18`
+- `IQFullEvents` 从 `2.754M` 降到 `0.406M`
+- `ROB writes` 从 `122.3M` 降到 `112.2M`
+
+这说明前端少取进来的那部分指令，大多是“挤爆后端但不能更快commit”的指令。前端稍微收窄后，后端反而能以更稳定的节奏 issue / commit。
+
+#### 4.2 `iqcap=26` 的作用：让IQ更像“有效窗口”而不是“投机垃圾桶”
+
+`iqcap=26` 时：
+
+- IPC 提升到 `3.062`
+- `IQFullEvents` 直接降到 `0`
+- `ROB writes` 比 baseline 少了约 `16.8M`
+- `memOrderViolation` 也从 `9457` 降到 `286`
+
+从 per-cycle 角度，这意味着 IQ 不再长期维持在“快满但又消化不掉”的状态。rename 不会频繁把更多指令推入一个已经过载的窗口，流水线更接近“持续流动”而不是“灌满后停住”。
+
+#### 4.3 `lsqcap=28` 的作用：减少load/store窗口过大带来的次序代价
+
+`lsqcap=28` 的代表性特征不是 `IQFullEvents`，而是：
+
+- `memOrderViolation` 从 `9457` 掉到 `399`
+- `ROB writes` 同样明显下降
+
+这说明限制 LSQ 的收益主要不是单纯减少拥塞，而是**减少不必要的 memory-order speculation 和后续 flush**。换成 per-cycle 语言就是：有更多 cycle 不再浪费在“先猜、再错、再回滚”的路径上。
+
+#### 4.4 `robcap=56` 的作用：从总量上限制“同时在飞”的浪费
+
+`robcap=56` 相当于在最上游做总量控制：
+
+- IQ 不再被填满
+- LSQ 压力也被间接压低
+- `ROB writes` 下降到 `106.0M`
+
+它的意义在于，很多局部问题其实都是同一个根因：**同时在飞的指令太多，超出了当前窗口真实并行度能支撑的范围**。ROB cap 直接从总量上把这个问题卡住了。
+
+### 5. per-cycle 视角下，为什么“省电但不一定掉IPC”
+
+这个问题是整个project最值得讲清楚的地方。
+
+如果一个workload的瓶颈是：
+
+- data-dependent memory chain
+- branch recovery
+- 或已经很明显的后端资源冲突
+
+那么前端多取进来的那几条指令，很多时候不会让当前cycle多 commit 一条有效指令。它们只会：
+
+- 提前占住 IQ/LSQ/ROB
+- 增加 rename/dispatch 活动
+- 提高后面几个cycle发生 stall / flush 的概率
+
+因此，适度 throttle 后出现的现象往往是：
+
+- `fetch / cycle` 下降一点
+- `issue / cycle` 和 `commit / cycle` 基本不变
+- 但 `IQFullEvents`、`memOrderViolation`、`ROB writes` 大幅下降
+
+这正是“为什么这么做有效”的微观答案。
+
+### 6. 对整个project的per-cycle总结
+
+从 per-cycle 角度，adaptive 机制最重要的价值可以压缩成一句话：
+
+> **它通过控制每个cycle进入流水线的指令流量和窗口占用，把CPU从“高投机、高回滚、高拥塞”的状态，拉回到“较少无效活动、较稳定issue/commit”的状态。**
+
+因此它能同时改善两个看起来矛盾的目标：
+
+- **功耗下降**：因为少了大量无效的 fetch / rename / dispatch / squash 活动
+- **IPC不一定下降，甚至可能上升**：因为真正有用的指令更少被无效投机挤占资源
+
+---
+
 ## Task 3: 逐窗口模式分析
 
 ### 任务描述
@@ -619,9 +815,9 @@ Baseline配置下f()已饱和但g()很大。**Sweet spot = f()还没有明显下
 - 振荡集中区域：Phase 2→3和Phase 3→4的过渡边界
 
 > **振荡的成因**：在phase transition boundary上，相邻窗口的信号特征在两种分类之间摇摆。例如一个窗口的squash_ratio刚好超过阈值→Serialized→conservative，下一个窗口刚好低于→Resource→aggressive，反复交替。从Timeline图的Phase 2→3过渡区可以清楚看到蓝红交替的条纹。
-> 
+>
 > **振荡的代价**：每次模式切换有微小的性能开销（参数生效需要1个窗口的延迟）。78%的切换是振荡→大量切换开销。但由于平均IPC delta≈0，实际代价很小。
-> 
+>
 > **改进方向**：增加hysteresis（从1到2-3）可减少振荡，但延迟对真正phase变化的响应。当前hysteresis=1是V2为快速响应有意设置的低值。
 
 **信号相关性分析**：
@@ -653,7 +849,7 @@ Baseline配置下f()已饱和但g()很大。**Sweet spot = f()还没有明显下
 | squash_ratio | 0.20 | 1 | 0.0% | 几乎不在边界——信号要么远高要么远低于阈值 |
 
 > **关键发现**：`avg_outstanding_misses`阈值（12.0）是最大的振荡来源——35.1%的窗口落在决策边界（阈值±20%）。这个信号的均值=12.73、标准差=7.70，说明大量窗口的值就在12附近波动。相比之下，`squash_ratio`几乎不在边界（0.0%），因为这个信号的分布是双峰的（streaming phase≈0, branchy phase≈0.5），阈值0.2清楚地分开了两个峰。
-> 
+>
 > **改进建议**：对`outstanding_misses`使用移动平均（跨窗口平滑）而不是单窗口值，可以减少边界噪声。或者将`outstanding_misses`的阈值从12.0调整到更高的值，远离信号的均值。
 
 **各分类的IPC分布**：
@@ -702,11 +898,11 @@ Baseline配置下f()已饱和但g()很大。**Sweet spot = f()还没有明显下
 | High-MLP | 0 | 0% | — |
 
 > **重要发现**：名为`serialized_pointer_chase`的workload竟然**没有被分类为Serialized-memory dominated**！
-> 
+>
 > **根因分析**：分类器decision tree的step 1判断 `mem_block_ratio >= 0.12`。但从Timeline图的信号panel看，指针追踪阶段的mem_block_ratio约0.08-0.10，**低于阈值0.12**。虽然指针链遍历确实是内存串行化的，但在gem5的统计方式下，`commit_blocked_mem_cycles`的累积速度不够快——因为O3 CPU在等待一个cache miss时还在投机执行其他指令，commit并不是"完全被内存阻塞"的。
-> 
+>
 > 分类器走到step 2（branch_recovery + squash检查）时，squash_ratio>0.2（因为投机执行产生大量squash）→ 分类为Control。其余窗口走到step 3/4的default→Resource。
-> 
+>
 > **这揭示了V2分类器的一个结构性缺陷**：`mem_block_ratio`作为proxy的灵敏度不够，无法捕捉"CPU在内存stall期间仍在投机执行"的场景。一个可能的改进是引入`dcache_miss_rate`或`avg_mem_latency`作为补充信号。
 
 **IPC by Mode——验证adaptive核心假设**：
@@ -717,11 +913,11 @@ Baseline配置下f()已饱和但g()很大。**Sweet spot = f()还没有明显下
 | **conservative** | **0.931** |
 
 > **conservative IPC高于aggressive（+22.3%）！** 这是整个项目中最有力的验证数据。
-> 
+>
 > **为什么conservative更快？** 指针链遍历时，每个load依赖于前一个load的结果（data-dependent load chain）。在aggressive模式下，O3 CPU的8-wide front-end不断fetch新指令沿投机路径执行，但几乎所有投机指令最终都被squash（因为后续指令依赖于还未返回的load值）。这些被squash的指令占用了IQ、LSQ、ROB资源，延长了有效指令的等待时间。
-> 
+>
 > Conservative模式收窄front-end（fw=2），大幅减少了投机指令的涌入。虽然取指带宽降低了，但**有效指令的执行延迟反而缩短了**——因为IQ/LSQ/ROB中不再充满注定会被squash的投机指令，有效指令能更快获得资源并执行。
-> 
+>
 > **这与Task 2 sweep中发现的sweet spot现象完全一致**——过度投机（baseline的8-wide aggressive）在某些workload上不仅浪费功耗，还降低性能。适度限制（conservative throttle）反而提升了有效吞吐。
 
 ### branch_entropy 分析
@@ -766,9 +962,9 @@ Baseline配置下f()已饱和但g()很大。**Sweet spot = f()还没有明显下
 | conservative | 1.019 |
 
 > **两种模式的IPC差距仅0.008（0.8%）**——对branch_entropy来说，conservative throttle对性能基本无害。原因是这个workload的IPC≈1.0，远低于fetch width=8的baseline front-end capacity。即使conservative收窄fetch width到2，workload的实际吞吐也只有~1条/周期，fw=2不构成瓶颈（与Task 2中fw=2对低IPC workload无效的发现一致）。
-> 
+>
 > 这使得conservative模式带来的**-11.6%功耗节省成为纯净收益**——0.8%的性能代价换11.6%的功耗节省，EDP改善约10.8%。
-> 
+>
 > **对adaptive设计的启示**：branch_entropy代表了一类"天然适合throttle"的workload——IPC不高、分支密集、投机浪费大。对这类workload，即使分类器不准确（46.5%分类不稳定），结果仍然是好的，因为两种模式的性能差异本身就很小。分类器的准确性只对"两种模式性能差异大"的workload才关键。
 
 ### 三个workload的对比总结
@@ -840,11 +1036,176 @@ adaptiveWindowLog = simout.create(logName);
 
 ### 4核实验结果
 
-> **状态：待完成**
->
-> 之前的4核实验存在分析方式问题，结果已清除。待重新设计实验方案和分析方法后重跑。
->
-> 已完成的基础设施（代码修改、脚本）保留可用。
+这里给出一次**重新运行、基于当前源码重编后 binary** 的真实多核实验结果。
+
+> 说明：在第一次尝试中，`build/ARM/gem5.opt` 的时间戳早于 `src/cpu/o3/cpu.cc`，导致 per-CPU log 命名改动没有真正生效。重新 `scons build/ARM/gem5.opt` 后，四个 CPU 的独立日志文件才正确生成。以下分析全部基于重编后的结果。
+
+**实验输出目录**：
+
+- baseline: `runs/multicore_4mix_10m_baseline_new/`
+- adaptive: `runs/multicore_4mix_10m_adaptive_v2_new/`
+
+#### 实验配置
+
+4 核混合 workload，CPU 到 workload 的映射固定如下：
+
+| CPU | Workload | 参数 |
+|-----|----------|------|
+| 0 | `serialized_pointer_chase` | `1048576 12 1` |
+| 1 | `branch_entropy` | `32768 1024 1` |
+| 2 | `phase_scan_mix` | `524288 24 1` |
+| 3 | `compute_queue_pressure` | `4096 8192 1` |
+
+共同配置：
+
+- `DerivO3CPU`
+- `--caches --l2cache`
+- `--mem-size=2GB`
+- `--maxinsts=10000000`
+- adaptive 参数为 V2 reference：`fw=2, inflight=96, hysteresis=1, min_mode=1, mem_block=0.12, outstanding_miss=12`
+
+#### baseline vs adaptive：4核 IPC 对比
+
+| Workload | Baseline IPC | Adaptive IPC | Delta |
+|---|---:|---:|---:|
+| serialized_pointer_chase | 0.490359 | 0.490205 | -0.03% |
+| branch_entropy | 0.963220 | 1.030940 | **+7.03%** |
+| phase_scan_mix | 0.407019 | 0.407375 | +0.09% |
+| compute_queue_pressure | 2.342010 | 2.341990 | -0.00% |
+
+整体仿真时间几乎一样：
+
+- baseline `simTicks = 2,134,919,000`
+- adaptive `simTicks = 2,134,936,500`
+
+这说明 adaptive 的变化不是由运行长度差异造成的。
+
+#### 每核窗口日志与模式分布
+
+重编后，per-CPU 日志已经按预期生成：
+
+- `adaptive_window_log.csv`
+- `adaptive_window_log_cpu1.csv`
+- `adaptive_window_log_cpu2.csv`
+- `adaptive_window_log_cpu3.csv`
+
+四个日志各有 `853` 个窗口。模式和分类分布如下：
+
+| Workload | 窗口数 | 模式分布 | 分类分布 |
+|---------|-------:|----------|----------|
+| serialized_pointer_chase | 853 | 100.0% aggressive | 100.0% Resource |
+| branch_entropy | 853 | 76.1% light-conservative, 23.7% aggressive, 0.2% conservative | 76.1% Serialized, 23.7% Resource, 0.2% Control |
+| phase_scan_mix | 853 | 100.0% aggressive | 100.0% High-MLP |
+| compute_queue_pressure | 853 | 100.0% aggressive | 99.5% Resource, 0.5% High-MLP |
+
+#### 关键发现 1：这次多核结果不是“完全没效果”，而是“只有一核明显受益”
+
+最显著的变化来自 `branch_entropy`：
+
+- IPC 从 `0.963` 提升到 `1.031`，增幅 **+7.03%**
+- 同时它是唯一一个被持续 throttle 的核心
+- 它在 `853` 个窗口中有 `649` 个窗口（`76.1%`）处于 `light-conservative`
+
+这说明在这个 4 核混合场景里，adaptive **并不是完全没有动作**，而是把主要动作集中到了一个最符合其当前判别逻辑的 core 上。
+
+从窗口信号看，`branch_entropy` 的平均特征是：
+
+- `avg_outstanding_misses_proxy = 9.024`
+- `avg_squash_ratio = 0.323`
+- `avg_branch_recovery_ratio = 0.090`
+- `avg_inflight_proxy = 42.397`
+
+因为 `mem_block_ratio` 已经高于阈值、但 `outstanding_misses` 又低于 `12`，分类器大量把它判成 `Serialized`，从而进入 `light-conservative`。在这个多核场景里，这种持续的温和 throttle 和它的 IPC 提升是**同方向出现**的。
+
+> 保守解读：这只能说明在这一次 4 核 mix 中，adaptive 对 `branch_entropy` 是有效的；不能直接推广为“所有 branch-heavy workload 在多核下都会提升 7%”。
+
+#### 关键发现 2：慢核被快核提前截断，导致多核实验覆盖到的 phase 很不均匀
+
+这次实验里最重要的方法学问题是：
+
+> **SE 模式下，只要任意一核先达到 `maxinsts`，整个仿真就会停止。**
+
+在这组配置中，最快的是 `compute_queue_pressure`，它首先到达 `10M` 指令。按 `IPC × cycles` 估算，各核实际完成的指令数大致是：
+
+| Workload | Baseline 约执行指令数 | Adaptive 约执行指令数 |
+|---------|----------------------:|----------------------:|
+| serialized_pointer_chase | 2.09M | 2.09M |
+| branch_entropy | 4.11M | 4.40M |
+| phase_scan_mix | 1.74M | 1.74M |
+| compute_queue_pressure | 10.00M | 10.00M |
+
+这意味着：
+
+- `compute_queue_pressure` 跑满了 `10M`
+- 但另外三颗核其实只跑了 `1.7M ~ 4.4M`
+- 它们很多后半段 phase 根本还没来得及出现，仿真就已经被快核终止
+
+#### 关键发现 3：`serialized_pointer_chase` 没有受益，不代表多核下它天然不适合 adaptive
+
+`serialized_pointer_chase` 在这次实验里：
+
+- IPC 基本不变（`-0.03%`）
+- `853` 个窗口里 **100% aggressive**
+- 分类 **100% Resource**
+
+它的平均窗口信号是：
+
+- `avg_outstanding_misses_proxy = 30.746`
+- `avg_squash_ratio = 0.0001`
+- `avg_branch_recovery_ratio = 0.0`
+- `avg_inflight_proxy = 2.700`
+
+这个结果和单核分析里“后半段 pointer-chase 阶段会出现明显 squash / serialized 特征”的结论不同。最合理的解释不是“多核下 pointer chase 突然不 serialized 了”，而是：
+
+> **它在这次 mixed run 中只执行了约 2.09M 指令，仿真在它进入代表性的后半段之前就被 CPU3 提前终止了。**
+
+所以这次 4 核实验只能说明：**当前 stop 条件下，`serialized_pointer_chase` 的关键 phase 没有被完整覆盖。**
+
+#### 关键发现 4：共享资源改变了分类器看到的信号，但当前控制器依然主要是“本核视角”
+
+`phase_scan_mix` 在多核下变成了：
+
+- 100% `High-MLP`
+- 100% aggressive
+- IPC 只变化 `+0.09%`
+
+而 `compute_queue_pressure` 则几乎全程：
+
+- 99.5% `Resource`
+- 100% aggressive
+- IPC 不变
+
+这说明共享 L2 竞争确实在改变每核看到的 `mem_block_ratio` / `outstanding_misses` / `inflight` 组合，但当前 adaptive 仍然只用**每核本地信号**做判断。它没有直接看到：
+
+- 共享 L2 当前排队长度
+- 其他 core 的 miss 压力
+- 每核对共享 cache 的边际干扰
+
+所以它现在更像是一个**本核自适应 throttle**，而不是一个真正的**共享资源协同调度器**。
+
+#### 多核实验的结论
+
+这次真正跑出来的结果，给出的是一个比“多核无效”更准确的结论：
+
+1. **多核基础设施已经可用**
+   - 4 核 mixed workload 能正常跑
+   - per-CPU adaptive 参数能正常下发
+   - per-CPU window log 在重编后能正常生成
+
+2. **在当前 4 核 mix 下，adaptive 的作用是局部的，不是全局平均的**
+   - `branch_entropy` 明显受益（+7.03%）
+   - 其他 3 核几乎不变
+
+3. **当前 mixed-run methodology 会被快核主导**
+   - `compute_queue_pressure` 先到 `10M`
+   - 慢核 phase 被截断
+   - 因此不能把这组结果直接当作“每个 workload 的完整多核画像”
+
+4. **下一轮多核分析要先解决实验边界，再谈机制优劣**
+   - 更合适的方法是固定总 cycles，或使用 ROI 标记同步截取
+   - 其次才是把共享资源信号纳入分类器
+
+> **一句话总结**：这次多核 rerun 证明了 adaptive 在多核下不是完全无效，但当前实验设计更像是在观测“快核截断下的局部行为”，还不是最终形态的多核结论。
 
 ---
 

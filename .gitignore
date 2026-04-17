@@ -34,5 +34,3 @@ configs/dram/lowp_sweep.cfg
 .vscode
 runs/
 build/
-runs/
-build/
