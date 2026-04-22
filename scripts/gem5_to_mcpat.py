@@ -85,7 +85,9 @@ def set_stat(comp: ET.Element, name: str, value) -> None:
 def set_stat_if_present(comp: ET.Element, name: str, value) -> None:
     elem = comp.find(f"./stat[@name='{name}']")
     if elem is not None:
-        elem.set("value", str(int(value) if float(value).is_integer() else value))
+        elem.set(
+            "value", str(int(value) if float(value).is_integer() else value)
+        )
 
 
 def set_param_if_present(comp: ET.Element, name: str, value) -> None:
@@ -127,7 +129,12 @@ def set_cache_geometry(
 
 
 def set_btb_geometry(
-    comp: ET.Element, *, entries: int, assoc: int = 2, throughput: int = 1, latency: int = 3
+    comp: ET.Element,
+    *,
+    entries: int,
+    assoc: int = 2,
+    throughput: int = 1,
+    latency: int = 3,
 ) -> None:
     if has_param(comp, "size"):
         set_param(comp, "size", entries)
@@ -160,7 +167,11 @@ def parse_clock_mhz(system_cfg: dict) -> int:
 
 
 def generate_xml(
-    template_path: Path, config_path: Path, stats_path: Path, output_path: Path
+    template_path: Path,
+    config_path: Path,
+    stats_path: Path,
+    output_path: Path,
+    num_cores: int = 1,
 ) -> None:
     system_cfg, cpu_cfg = parse_config(config_path)
     stats = load_stats(stats_path)
@@ -177,26 +188,34 @@ def generate_xml(
     # Some McPAT templates name the BTB component "BTB" instead of
     # "btargetbuf". Accept both to keep the conversion script usable across
     # our bundled templates and older run directories.
-    btb = find_first_component(root, "system.core0.btargetbuf", "system.core0.BTB")
+    btb = find_first_component(
+        root, "system.core0.btargetbuf", "system.core0.BTB"
+    )
     l2 = find_component(root, "system.L20")
+
+    # For multicore: use cpu0 stats as representative core
+    cpu_prefix = "system.cpu0" if num_cores > 1 else "system.cpu"
 
     clock_mhz = parse_clock_mhz(system_cfg)
     line_size = int(system_cfg.get("cache_line_size", 64))
     sim_insts = get_stat(stats, "simInsts")
-    total_cycles = max(get_stat(stats, "system.cpu.numCycles"), 1.0)
+    total_cycles = max(get_stat(stats, f"{cpu_prefix}.numCycles"), 1.0)
     load_insts = get_stat(
-        stats, "system.cpu.commit.committedInstType_0::MemRead"
+        stats, f"{cpu_prefix}.commit.committedInstType_0::MemRead"
     )
     store_insts = get_stat(
-        stats, "system.cpu.commit.committedInstType_0::MemWrite"
+        stats, f"{cpu_prefix}.commit.committedInstType_0::MemWrite"
     )
-    branch_insts = get_stat(stats, "system.cpu.branchPred.lookups")
+    branch_insts = get_stat(stats, f"{cpu_prefix}.branchPred.lookups")
     int_insts = max(sim_insts - load_insts - store_insts - branch_insts, 0.0)
     pipeline_duty = min(
-        get_stat(stats, "system.cpu.ipc")
+        get_stat(stats, f"{cpu_prefix}.ipc")
         / max(int(cpu_cfg.get("commitWidth", 1)), 1),
         1.0,
     )
+
+    # For multicore: McPAT runs with single-core template using cpu0 stats.
+    # The caller multiplies energy by num_cores for total system energy.
 
     set_param(system, "target_core_clockrate", clock_mhz)
     set_stat(system, "total_cycles", total_cycles)
@@ -233,7 +252,7 @@ def generate_xml(
     set_stat(
         core,
         "branch_mispredictions",
-        get_stat(stats, "system.cpu.commit.branchMispredicts"),
+        get_stat(stats, f"{cpu_prefix}.commit.branchMispredicts"),
     )
     set_stat(core, "load_instructions", load_insts)
     set_stat(core, "store_instructions", store_insts)
@@ -243,37 +262,41 @@ def generate_xml(
     set_stat(core, "pipeline_duty_cycle", round(pipeline_duty, 6))
     set_stat(core, "total_cycles", total_cycles)
     set_stat(
-        core, "ROB_reads", get_stat(stats, "system.cpu.rob.reads", sim_insts)
+        core,
+        "ROB_reads",
+        get_stat(stats, f"{cpu_prefix}.rob.reads", sim_insts),
     )
     set_stat(
-        core, "ROB_writes", get_stat(stats, "system.cpu.rob.writes", sim_insts)
+        core,
+        "ROB_writes",
+        get_stat(stats, f"{cpu_prefix}.rob.writes", sim_insts),
     )
     set_stat(
         core,
         "rename_reads",
-        get_stat(stats, "system.cpu.rename.lookups", sim_insts),
+        get_stat(stats, f"{cpu_prefix}.rename.lookups", sim_insts),
     )
     set_stat(
         core,
         "rename_writes",
-        get_stat(stats, "system.cpu.rename.renamedInsts", sim_insts),
+        get_stat(stats, f"{cpu_prefix}.rename.renamedInsts", sim_insts),
     )
     set_stat(core, "fp_rename_reads", 0)
     set_stat(core, "fp_rename_writes", 0)
     set_stat(
         core,
         "inst_window_reads",
-        get_stat(stats, "system.cpu.instsIssued", sim_insts),
+        get_stat(stats, f"{cpu_prefix}.instsIssued", sim_insts),
     )
     set_stat(
         core,
         "inst_window_writes",
-        get_stat(stats, "system.cpu.instsAdded", sim_insts),
+        get_stat(stats, f"{cpu_prefix}.instsAdded", sim_insts),
     )
     set_stat(
         core,
         "inst_window_wakeup_accesses",
-        get_stat(stats, "system.cpu.instsIssued", sim_insts),
+        get_stat(stats, f"{cpu_prefix}.instsIssued", sim_insts),
     )
     set_stat(core, "fp_inst_window_reads", 0)
     set_stat(core, "fp_inst_window_writes", 0)
@@ -281,41 +304,41 @@ def generate_xml(
     set_stat(
         core,
         "int_regfile_reads",
-        get_stat(stats, "system.cpu.rename.intLookups", int_insts),
+        get_stat(stats, f"{cpu_prefix}.rename.intLookups", int_insts),
     )
     set_stat(core, "float_regfile_reads", 0)
     set_stat(
         core,
         "int_regfile_writes",
-        get_stat(stats, "system.cpu.rename.renamedOperands", int_insts),
+        get_stat(stats, f"{cpu_prefix}.rename.renamedOperands", int_insts),
     )
     set_stat(core, "float_regfile_writes", 0)
     set_stat(
         core,
         "function_calls",
-        get_stat(stats, "system.cpu.commit.functionCalls"),
+        get_stat(stats, f"{cpu_prefix}.commit.functionCalls"),
     )
     set_stat(core, "context_switches", 0)
     set_stat(
         core,
         "ialu_accesses",
-        get_stat(stats, "system.cpu.commit.committedInstType_0::IntAlu"),
+        get_stat(stats, f"{cpu_prefix}.commit.committedInstType_0::IntAlu"),
     )
     set_stat(core, "fpu_accesses", 0)
     set_stat(
         core,
         "mul_accesses",
-        get_stat(stats, "system.cpu.commit.committedInstType_0::IntMult"),
+        get_stat(stats, f"{cpu_prefix}.commit.committedInstType_0::IntMult"),
     )
     set_stat(
         core,
         "cdb_alu_accesses",
-        get_stat(stats, "system.cpu.commit.committedInstType_0::IntAlu"),
+        get_stat(stats, f"{cpu_prefix}.commit.committedInstType_0::IntAlu"),
     )
     set_stat(
         core,
         "cdb_mul_accesses",
-        get_stat(stats, "system.cpu.commit.committedInstType_0::IntMult"),
+        get_stat(stats, f"{cpu_prefix}.commit.committedInstType_0::IntMult"),
     )
     set_stat(core, "cdb_fpu_accesses", 0)
 
@@ -347,7 +370,7 @@ def generate_xml(
     set_stat(
         itlb,
         "total_accesses",
-        get_stat(stats, "system.cpu.icache.ReadReq.accesses::total"),
+        get_stat(stats, f"{cpu_prefix}.icache.ReadReq.accesses::total"),
     )
     set_stat(itlb, "total_misses", 4)
     set_stat(itlb, "conflicts", 0)
@@ -365,31 +388,31 @@ def generate_xml(
     set_stat(
         icache,
         "read_accesses",
-        get_stat(stats, "system.cpu.icache.ReadReq.accesses::total"),
+        get_stat(stats, f"{cpu_prefix}.icache.ReadReq.accesses::total"),
     )
     set_stat(
         icache,
         "read_misses",
-        get_stat(stats, "system.cpu.icache.ReadReq.misses::total"),
+        get_stat(stats, f"{cpu_prefix}.icache.ReadReq.misses::total"),
     )
     set_stat(icache, "conflicts", 0)
     set_stat_if_present(icache, "duty_cycle", 1)
 
     set_tlb_stats(
         dtlb,
-        accesses=get_stat(stats, "system.cpu.dcache.demandAccesses::total"),
+        accesses=get_stat(stats, f"{cpu_prefix}.dcache.demandAccesses::total"),
         misses=4,
     )
 
     d_reads = get_stat(
         stats, "system.cpu.dcache.ReadReq.accesses::total"
-    ) + get_stat(stats, "system.cpu.dcache.LoadLockedReq.accesses::total")
+    ) + get_stat(stats, f"{cpu_prefix}.dcache.LoadLockedReq.accesses::total")
     d_writes = get_stat(
         stats, "system.cpu.dcache.WriteReq.accesses::total"
-    ) + get_stat(stats, "system.cpu.dcache.StoreCondReq.accesses::total")
+    ) + get_stat(stats, f"{cpu_prefix}.dcache.StoreCondReq.accesses::total")
     d_read_misses = get_stat(
         stats, "system.cpu.dcache.ReadReq.misses::total"
-    ) + get_stat(stats, "system.cpu.dcache.LoadLockedReq.misses::total")
+    ) + get_stat(stats, f"{cpu_prefix}.dcache.LoadLockedReq.misses::total")
     d_write_misses = get_stat(
         stats, "system.cpu.dcache.WriteReq.misses::total"
     )
@@ -414,12 +437,12 @@ def generate_xml(
     set_stat(
         btb,
         "read_accesses",
-        get_stat(stats, "system.cpu.branchPred.BTBLookups"),
+        get_stat(stats, f"{cpu_prefix}.branchPred.BTBLookups"),
     )
     set_stat(
         btb,
         "write_accesses",
-        get_stat(stats, "system.cpu.branchPred.BTBUpdates"),
+        get_stat(stats, f"{cpu_prefix}.branchPred.BTBUpdates"),
     )
 
     l2_reads = get_stat(
@@ -466,6 +489,12 @@ def main() -> None:
         default="ext/mcpat/regression/test-0/power_region0.xml",
         help="McPAT XML template base",
     )
+    parser.add_argument(
+        "--num-cores",
+        type=int,
+        default=1,
+        help="Number of cores (>1 reads cpu0 stats, sets number_of_cores)",
+    )
     parser.add_argument("--run-mcpat", action="store_true")
     parser.add_argument("--mcpat-binary", default="build/mcpat/mcpat")
     parser.add_argument("--mcpat-output", default="")
@@ -473,7 +502,13 @@ def main() -> None:
 
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
-    generate_xml(Path(args.template), Path(args.config), Path(args.stats), out)
+    generate_xml(
+        Path(args.template),
+        Path(args.config),
+        Path(args.stats),
+        out,
+        num_cores=args.num_cores,
+    )
 
     if args.run_mcpat:
         cmd = [args.mcpat_binary, "-infile", str(out), "-print_level", "5"]

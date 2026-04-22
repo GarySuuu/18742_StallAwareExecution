@@ -122,9 +122,8 @@ class CPU : public BaseCPU
 
     enum class AdaptiveMode
     {
-        Aggressive,
-        LightConservative,  /* V3: sweet spot throttle */
-        Conservative,       /* V2: stronger throttle */
+        Aggressive,         /* no throttle */
+        Conservative,       /* throttle: normal(fw=6) or deep(fw=4) via sub-level */
         SerializedProfile,
         HighMLPProfile,
         ControlProfile,
@@ -531,17 +530,11 @@ class CPU : public BaseCPU
     unsigned adaptiveSwitchHysteresis = 2;
     unsigned adaptiveMinModeWindows = 2;
     unsigned adaptiveAggressiveFetch = 8;
-    /* Light conservative (sweet spot) */
-    unsigned adaptiveLightConsFetch = 6;
-    unsigned adaptiveLightConsInflightCap = 56;
-    unsigned adaptiveLightConsIQCap = 26;
-    unsigned adaptiveLightConsLSQCap = 28;
-
-    /* Deep conservative */
-    unsigned adaptiveConservativeFetch = 4;
-    unsigned adaptiveConservativeInflightCap = 48;
-    unsigned adaptiveConservativeIQCap = 20;
-    unsigned adaptiveConservativeLSQCap = 16;
+    /* Conservative mode (normal sub-level) */
+    unsigned adaptiveConservativeFetch = 6;
+    unsigned adaptiveConservativeInflightCap = 128;
+    unsigned adaptiveConservativeIQCap = 0;
+    unsigned adaptiveConservativeLSQCap = 0;
     unsigned adaptiveConservativeRenameWidth = 0;
     unsigned adaptiveConservativeDispatchWidth = 0;
     bool adaptiveUseClassProfiles = false;
@@ -586,13 +579,38 @@ class CPU : public BaseCPU
     unsigned adaptiveSerializedTightFetch = 4;
     unsigned adaptiveSerializedTightInflightCap = 128;
     bool adaptiveCurrentSerializedTight = false;
+
+    /** Squash-proportional fetch width for Conservative mode.
+     *  0 = disabled (use binary ser-tight). >0 = enabled. */
+    unsigned adaptiveSquashProportionalFW = 0;
+    double adaptiveCurrentSquashRatio = 0.0;
+
+    /** Aggressive mode fetch width limit (0 or 8 = baseline, 7 = light throttle) */
+    unsigned adaptiveAggressiveFetchLimit = 0;
     AdaptiveWindowStats adaptiveWindowStats;
     OutputStream *adaptiveWindowLog = nullptr;
 
-    /** V3: EMA-smoothed signals for stable classification */
-    double adaptiveEmaOutstandingMisses = 0.0;
-    double adaptiveEmaMemBlockRatio = 0.0;
-    double adaptiveEmaAlpha = 0.3;
+    /** Adaptive window size */
+    bool adaptiveWindowAutoSize = false;
+    unsigned adaptiveWindowMin = 1000;
+    unsigned adaptiveWindowMax = 10000;
+    unsigned adaptiveWindowCheckInterval = 8;
+    unsigned adaptiveWindowCheckCount = 0;
+    unsigned adaptiveClassChangeCount = 0;
+    AdaptiveClass adaptivePrevWindowClass = AdaptiveClass::ResourceContentionDominated;
+
+    /** V3: Decoupled signals — stores last aggressive-mode raw values
+     *  to prevent classification drift when in conservative mode. */
+    double adaptiveDecoupledOutstandingMisses = 0.0;
+    double adaptiveDecoupledMemBlockRatio = 0.0;
+
+    /** Resource congestion sub-level: sweet spot caps for Aggressive
+     *  windows with high speculation waste */
+    double adaptiveResourceCongestionCommitThres = 0.95;
+    unsigned adaptiveResourceCongestionInflightCap = 56;
+    unsigned adaptiveResourceCongestionIQCap = 26;
+    unsigned adaptiveResourceCongestionLSQCap = 28;
+    bool adaptiveCurrentResourceCongested = false;
 
     void adaptiveRecordCycleSignals();
     AdaptiveClass adaptiveClassifyWindow(

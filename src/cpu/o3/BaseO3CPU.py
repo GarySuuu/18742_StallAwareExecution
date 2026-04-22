@@ -197,7 +197,17 @@ class BaseO3CPU(BaseCPU):
         False, "Enable stall root-cause adaptive controller (v1)"
     )
     adaptiveWindowCycles = Param.Unsigned(
-        5000, "Sampling window size in cycles for adaptive controller"
+        5000, "Initial sampling window size in cycles"
+    )
+    adaptiveWindowAutoSize = Param.Bool(
+        False,
+        "Enable adaptive window size (adjusts based on phase change rate)",
+    )
+    adaptiveWindowMin = Param.Unsigned(
+        1000, "Minimum window size when auto-sizing"
+    )
+    adaptiveWindowMax = Param.Unsigned(
+        10000, "Maximum window size when auto-sizing"
     )
     adaptiveSwitchHysteresis = Param.Unsigned(
         2, "Consecutive windows required before class/mode switch"
@@ -205,32 +215,19 @@ class BaseO3CPU(BaseCPU):
     adaptiveMinModeWindows = Param.Unsigned(
         2, "Minimum number of windows to hold current mode"
     )
-    # Light conservative (sweet spot): minimal throttle, may improve IPC
-    adaptiveLightConsFetchWidth = Param.Unsigned(
-        6, "Fetch width in light conservative mode (sweet spot)"
-    )
-    adaptiveLightConsInflightCap = Param.Unsigned(
-        56, "Inflight cap in light conservative mode (sweet spot)"
-    )
-    adaptiveLightConsIQCap = Param.Unsigned(
-        26, "IQ cap in light conservative mode (sweet spot, 0 disables)"
-    )
-    adaptiveLightConsLSQCap = Param.Unsigned(
-        28, "LSQ cap in light conservative mode (sweet spot, 0 disables)"
-    )
-
-    # Deep conservative: stronger throttle for stall-heavy phases
+    # Conservative mode (normal sub-level, fw=6)
+    # Deep sub-level (fw=4) uses adaptiveSerializedTight* params
     adaptiveConservativeFetchWidth = Param.Unsigned(
-        4, "Fetch width in (deep) conservative mode"
+        6, "Fetch width in conservative mode (normal sub-level)"
     )
     adaptiveConservativeInflightCap = Param.Unsigned(
-        48, "Inflight cap in (deep) conservative mode"
+        128, "Inflight cap in conservative mode"
     )
     adaptiveConservativeIQCap = Param.Unsigned(
-        20, "IQ cap in (deep) conservative mode (0 disables)"
+        0, "IQ cap in conservative mode (0 disables)"
     )
     adaptiveConservativeLSQCap = Param.Unsigned(
-        16, "LSQ cap in (deep) conservative mode (0 disables)"
+        0, "LSQ cap in conservative mode (0 disables)"
     )
     adaptiveConservativeRenameWidth = Param.Unsigned(
         0, "Rename width in conservative mode (0 keeps baseline)"
@@ -330,8 +327,19 @@ class BaseO3CPU(BaseCPU):
         128, "Inflight cap for tight serialized windows"
     )
 
+    adaptiveSquashProportionalFW = Param.Unsigned(
+        0,
+        "Enable squash-proportional fetch width in Conservative mode "
+        "(0=disabled, use binary ser-tight; 1=enabled, fw scales with squash_ratio)",
+    )
+    adaptiveAggressiveFetchLimit = Param.Unsigned(
+        0,
+        "Fetch width limit for Aggressive mode (0=baseline/no limit, 7=light throttle)",
+    )
+
     adaptiveMemBlockRatioThres = Param.Float(
-        0.08, "Threshold for memory-blocked ratio per window (V3: lowered from 0.15)"
+        0.08,
+        "Threshold for memory-blocked ratio per window (V3: lowered from 0.15)",
     )
     adaptiveOutstandingMissThres = Param.Float(
         8.0, "Threshold for avg outstanding misses proxy per window"
@@ -354,8 +362,24 @@ class BaseO3CPU(BaseCPU):
         0.20, "Threshold for commit activity ratio per window"
     )
 
-    adaptiveEmaAlpha = Param.Float(
-        0.3,
-        "V3 EMA smoothing factor for boundary-sensitive signals "
-        "(outstanding_misses, mem_block_ratio). 0 disables EMA.",
+    # EMA smoothing removed -- ineffective and conceptually incorrect.
+    # Signal decoupling (freeze signals during conservative mode) is
+    # implemented directly in cpu.cc without needing a parameter.
+
+    # Resource congestion sub-level: apply sweet spot caps to Aggressive
+    # windows with high speculation waste (low commit activity ratio)
+    adaptiveResourceCongestionCommitThres = Param.Float(
+        0.95,
+        "Commit activity ratio threshold for resource congestion sub-level. "
+        "Windows with commit_activity below this have significant speculation "
+        "waste and benefit from IQ/LSQ/inflight caps (0 disables).",
+    )
+    adaptiveResourceCongestionInflightCap = Param.Unsigned(
+        56, "Inflight cap for resource-congested windows (sweet spot)"
+    )
+    adaptiveResourceCongestionIQCap = Param.Unsigned(
+        26, "IQ cap for resource-congested windows (sweet spot)"
+    )
+    adaptiveResourceCongestionLSQCap = Param.Unsigned(
+        28, "LSQ cap for resource-congested windows (sweet spot)"
     )
